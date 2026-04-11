@@ -4,7 +4,7 @@
 
 A blazing-fast, cross-platform Markdown preview tool built with **Rust** and system **WebView**. No bundled browser, no heavy runtimes — just a single ~1MB binary that renders your `.md` files beautifully.
 
-![MD Preview Welcome Screen](screenshots/welcome.png)
+![MD Preview Welcome Screen](https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/welcome.png)
 
 ## Why MD Preview?
 
