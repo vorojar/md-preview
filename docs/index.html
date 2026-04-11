@@ -3,15 +3,50 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MD Preview — Ultra-lightweight Markdown Preview App</title>
-<meta name="description" content="A blazing-fast, cross-platform Markdown preview app. ~1MB binary, native WebView, offline syntax highlighting, dark mode. Built with Rust.">
-<meta name="keywords" content="markdown, preview, viewer, rust, lightweight, native, macos, windows, linux, dark mode, syntax highlighting, open source">
+<title>MD Preview — Ultra-lightweight Markdown Preview App for macOS, Windows & Linux</title>
+<meta name="description" content="Free, open-source Markdown preview app. ~1MB binary, native WebView, offline syntax highlighting for 40+ languages, dark mode. Built with Rust. Supports macOS, Windows, Linux.">
+<meta name="keywords" content="markdown preview, markdown viewer, markdown reader, md preview, lightweight markdown app, rust markdown, native markdown viewer, offline markdown, syntax highlighting, dark mode, macos app, windows app, linux app, open source, free markdown tool, electron alternative, wry, pulldown-cmark">
+<meta name="author" content="vorojar">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://vorojar.github.io/md-preview/">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MD Preview">
 <meta property="og:title" content="MD Preview — Ultra-lightweight Markdown Preview App">
-<meta property="og:description" content="~1MB binary. Zero Electron. Pure native. Built with Rust + system WebView.">
+<meta property="og:description" content="~1MB binary. Zero Electron. Pure native. Syntax highlighting for 40+ languages. macOS, Windows, Linux. Free & open source.">
 <meta property="og:image" content="https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/welcome.png">
+<meta property="og:image:width" content="1281">
+<meta property="og:image:height" content="1080">
 <meta property="og:url" content="https://vorojar.github.io/md-preview/">
+
+<!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="MD Preview — ~1MB Markdown Preview App">
+<meta name="twitter:description" content="Zero Electron. Pure native. 40+ languages highlighted. Free & open source.">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/welcome.png">
+
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>#</text></svg>">
+
+<!-- Structured Data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "MD Preview",
+  "description": "Ultra-lightweight cross-platform Markdown preview app built with Rust. ~1MB binary, native WebView, offline syntax highlighting, dark mode.",
+  "url": "https://vorojar.github.io/md-preview/",
+  "downloadUrl": "https://github.com/vorojar/md-preview/releases",
+  "operatingSystem": "macOS, Windows, Linux",
+  "applicationCategory": "DeveloperApplication",
+  "softwareVersion": "0.3.0",
+  "fileSize": "1.1MB",
+  "license": "https://opensource.org/licenses/MIT",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "author": { "@type": "Person", "name": "vorojar", "url": "https://github.com/vorojar" },
+  "sourceOrganization": { "@type": "Organization", "name": "GitHub", "url": "https://github.com/vorojar/md-preview" }
+}
+</script>
 <style>
 :root { color-scheme: light dark; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -262,7 +297,7 @@ footer a { color: inherit; }
 </head>
 <body>
 
-<section class="hero">
+<header class="hero">
   <div class="hero-icon">#</div>
   <h1>MD Preview</h1>
   <p class="tagline">Ultra-lightweight Markdown preview. ~1MB binary, zero Electron, pure native.</p>
@@ -273,7 +308,7 @@ footer a { color: inherit; }
 </section>
 
 <section class="screenshot">
-  <img src="https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/welcome.png" alt="MD Preview screenshot">
+  <img src="https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/welcome.png" alt="MD Preview app window showing the welcome screen with drag-and-drop and Cmd+O file opening on macOS" loading="lazy" width="1281" height="1080">
 </section>
 
 <section class="stats">
