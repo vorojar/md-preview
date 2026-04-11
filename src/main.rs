@@ -106,7 +106,46 @@ fn load_and_render(path: &PathBuf) -> Option<String> {
     })
 }
 
+/// On first launch, register as default handler for .md files (macOS)
+#[cfg(target_os = "macos")]
+fn register_as_default() {
+    use std::process::Command;
+    // Check if already registered by looking for a marker file
+    let marker = dirs_hint().join(".md-preview-registered");
+    if marker.exists() {
+        return;
+    }
+    // Use swift to call LSSetDefaultRoleHandlerForContentType
+    let _ = Command::new("swift")
+        .arg("-")
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .and_then(|mut child| {
+            use std::io::Write;
+            if let Some(ref mut stdin) = child.stdin {
+                let _ = stdin.write_all(b"import Foundation\nimport CoreServices\nlet _ = LSSetDefaultRoleHandlerForContentType(\"net.daringfireball.markdown\" as NSString, .viewer, \"com.mdpreview.app\" as NSString)\n");
+            }
+            child.wait()
+        });
+    // Create marker
+    let _ = fs::create_dir_all(marker.parent().unwrap());
+    let _ = fs::write(&marker, "");
+}
+
+#[cfg(target_os = "macos")]
+fn dirs_hint() -> PathBuf {
+    std::env::var("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_default()
+        .join(".config/md-preview")
+}
+
+#[cfg(not(target_os = "macos"))]
+fn register_as_default() {}
+
 fn main() {
+    register_as_default();
+
     // CLI: md-preview [file.md]
     let initial_file: Option<PathBuf> = std::env::args().nth(1).map(PathBuf::from).and_then(|p| {
         let p = if p.is_relative() {
