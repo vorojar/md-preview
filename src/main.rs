@@ -271,6 +271,16 @@ fn main() {
                     }
                 }
             }
+            // macOS: double-click .md file in Finder opens the app with this event
+            TaoEvent::Opened { urls } => {
+                for url in urls {
+                    if let Ok(path) = url.to_file_path() {
+                        *file_path_for_event.lock().unwrap() = Some(path);
+                        let _ = proxy.send_event(UserEvent::FileChanged);
+                        break;
+                    }
+                }
+            }
             TaoEvent::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
