@@ -1,0 +1,19 @@
+[package]
+name = "md-preview"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wry = "0.50"
+tao = "0.33"
+pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
+rfd = "0.15"
+notify = "7"
+open = "5"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
