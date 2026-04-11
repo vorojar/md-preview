@@ -5,16 +5,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tao::event::{Event as TaoEvent, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoop, EventLoopBuilder};
-use tao::window::{Icon, WindowBuilder};
+use tao::window::WindowBuilder;
 use wry::WebViewBuilder;
-
-const ICON_PNG: &[u8] = include_bytes!("../assets/icon_1024.png");
-
-fn load_icon() -> Option<Icon> {
-    let img = image::load_from_memory(ICON_PNG).ok()?.into_rgba8();
-    let (w, h) = img.dimensions();
-    Icon::from_rgba(img.into_raw(), w, h).ok()
-}
 
 #[derive(Debug)]
 enum UserEvent {
@@ -32,25 +24,27 @@ fn md_to_html(md: &str) -> String {
     html_out
 }
 
-/// Highlight.js CDN (core + common languages, ~40KB gzipped)
-const HLJS_SCRIPT: &str = r#"<link rel="stylesheet" id="hljs-theme"
-  href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-<script>
-// Auto-switch highlight theme with system dark mode
-(function(){
-  const dark = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';
-  const light = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css';
-  const mq = window.matchMedia('(prefers-color-scheme: dark)');
-  function apply(e) { document.getElementById('hljs-theme').href = e.matches ? dark : light; }
-  apply(mq); mq.addEventListener('change', apply);
-})();
-</script>"#;
+// Embedded highlight.js + themes (offline)
+const HLJS_JS: &str = include_str!("../assets/hljs/highlight.min.js");
+const HLJS_LIGHT: &str = include_str!("../assets/hljs/github.min.css");
+const HLJS_DARK: &str = include_str!("../assets/hljs/github-dark.min.css");
 
 fn build_page(body: &str) -> String {
     format!(
         r#"<!DOCTYPE html><html><head><meta charset="utf-8">
-{hljs}
+<style id="hljs-light">{css_light}</style>
+<style id="hljs-dark" media="not all">{css_dark}</style>
+<script>{hljs_js}</script>
+<script>
+(function(){{
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+  function apply(e) {{
+    document.getElementById('hljs-light').media = e.matches ? 'not all' : '';
+    document.getElementById('hljs-dark').media = e.matches ? '' : 'not all';
+  }}
+  apply(mq); mq.addEventListener('change', apply);
+}})();
+</script>
 <style>
 :root {{ color-scheme: light dark; }}
 body {{
@@ -91,7 +85,9 @@ input[type="checkbox"] {{ margin-right: 6px; }}
 </style></head><body>{body}</body>
 <script>hljs.highlightAll();</script>
 </html>"#,
-        hljs = HLJS_SCRIPT,
+        css_light = HLJS_LIGHT,
+        css_dark = HLJS_DARK,
+        hljs_js = HLJS_JS,
         body = body
     )
 }
@@ -135,7 +131,6 @@ fn main() {
 
     let window = WindowBuilder::new()
         .with_title(&title)
-        .with_window_icon(load_icon())
         .with_inner_size(tao::dpi::LogicalSize::new(900.0, 700.0))
         .build(&event_loop)
         .expect("failed to build window");
@@ -234,7 +229,6 @@ fn main() {
                     if let Ok(content) = fs::read_to_string(path) {
                         let html_body = md_to_html(&content);
                         let page = build_page(&html_body);
-                        // Save scroll, replace content, restore scroll, re-highlight
                         let js = format!(
                             r#"(function(){{
                                 var s = document.documentElement.scrollTop || document.body.scrollTop;
