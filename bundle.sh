@@ -7,15 +7,22 @@ MD_UTI="net.daringfireball.markdown"
 BIN="target/release/md-preview"
 APP_DIR="target/${APP_NAME}.app"
 
-echo "Building release..."
-cargo build --release
+echo "Building release (arm64 + x86_64)..."
+cargo build --release --target aarch64-apple-darwin
+cargo build --release --target x86_64-apple-darwin
+
+echo "Creating Universal Binary..."
+lipo -create \
+  target/aarch64-apple-darwin/release/md-preview \
+  target/x86_64-apple-darwin/release/md-preview \
+  -output target/release/md-preview-universal
 
 echo "Creating app bundle..."
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
 
-cp "$BIN" "$APP_DIR/Contents/MacOS/md-preview"
+cp target/release/md-preview-universal "$APP_DIR/Contents/MacOS/md-preview"
 cp assets/icon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 
 cat > "$APP_DIR/Contents/Info.plist" << PLIST
