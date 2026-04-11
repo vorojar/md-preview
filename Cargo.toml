@@ -10,6 +10,7 @@ pulldown-cmark = { version = "0.12", default-features = false, features = ["html
 rfd = "0.15"
 notify = "7"
 open = "5"
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [profile.release]
 opt-level = "z"
