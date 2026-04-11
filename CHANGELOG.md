@@ -1,16 +1,15 @@
 # Changelog
 
-## 0.2.1
+## 0.3.0
 
-- 重新设计应用图标：极简风格，白色圆角矩形背景 + 深灰色 "#" 符号
-
-## 0.2.0
-
-- 应用图标（蓝色 MD logo，内嵌 + .icns）
-- CLI 参数支持：`md-preview file.md` 直接打开
-- 代码语法高亮（highlight.js CDN，自动跟随暗色/亮色主题）
-- 刷新时保持滚动位置
-- macOS .app 打包脚本（`bundle.sh`，1.3MB）
+- 极简应用图标（白底 "#"，简洁干净）
+- CLI 参数：`md-preview file.md` 直接打开
+- 离线代码语法高亮（自研 2KB mini highlighter，替代 119KB highlight.js）
+- 支持关键词、字符串、注释、数字、函数名着色
+- 暗色/亮色主题自动切换
+- 刷新保持滚动位置
+- 去掉 image crate，二进制 986KB（< 1MB）
+- macOS .app 打包脚本（`bundle.sh`）
 
 ## 0.1.0
 
