@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+- 应用图标（蓝色 MD logo，内嵌 + .icns）
+- CLI 参数支持：`md-preview file.md` 直接打开
+- 代码语法高亮（highlight.js CDN，自动跟随暗色/亮色主题）
+- 刷新时保持滚动位置
+- macOS .app 打包脚本（`bundle.sh`，1.3MB）
+
 ## 0.1.0
 
 - 初始版本
