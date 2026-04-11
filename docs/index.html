@@ -59,29 +59,51 @@ body {
 }
 
 @media (prefers-color-scheme: dark) {
-  body { color: #d4d4d4; background: #1e1e1e; }
-  .hero { background: #161616; }
-  .hero h1 { color: #f0f0f0; }
-  .hero-icon { color: #555; }
-  .hero .tagline { color: #999; }
-  .screenshot { background: #161616; }
-  .screenshot img { box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
-  .stats { background: #161616; }
-  .stat { background: #252525; }
-  .stat .label { color: #777; }
-  .features { background: #1e1e1e; }
-  .feature { background: #252525; }
-  .feature p { color: #999; }
-  .cta-secondary { color: #d4d4d4; border-color: #444; }
+  body { color: #e0e0e0; background: #1a1a1a; }
+
+  /* Hero */
+  .hero { background: #141414; }
+  .hero h1 { color: #ffffff; }
+  .hero-icon { color: #666; }
+  .hero .tagline { color: #aaa; }
+
+  /* Screenshot */
+  .screenshot { background: #141414; }
+  .screenshot img { box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+
+  /* Stats */
+  .stats { background: #141414; }
+  .stat { background: #222; }
+  .stat .number { color: #fff; }
+  .stat .label { color: #aaa; }
+
+  /* Features */
+  .features { background: #1a1a1a; }
+  .feature { background: #222; }
+  .feature h3 { color: #fff; }
+  .feature p { color: #aaa; }
+  .feature .icon { opacity: 0.9; }
+
+  /* Buttons */
+  .cta-secondary { color: #e0e0e0; border-color: #555; }
   .cta-secondary:hover { background: #333; }
-  .install-steps code { background: #333; color: #d4d4d4; }
-  .install { background: #1e1e1e; }
-  .comparison-section { background: #1e1e1e; }
-  .comparison td, .comparison th { border-color: #333; color: #d4d4d4; }
-  .comparison th { background: #252525; }
+
+  /* Comparison */
+  .comparison-section { background: #1a1a1a; }
+  .comparison-section h2 { color: #fff; }
+  .comparison td { color: #ccc; }
+  .comparison th { background: #222; color: #fff; border-color: #333; }
+  .comparison td, .comparison th { border-color: #333; }
   .comparison .highlight { background: #1a2a1a; }
-  footer { border-color: #333; color: #555; }
-  footer a { color: #777; }
+
+  /* Install */
+  .install { background: #1a1a1a; }
+  .install h2 { color: #fff; }
+  .install-steps code { background: #333; color: #e0e0e0; }
+
+  /* Footer */
+  footer { border-color: #333; color: #666; }
+  footer a { color: #888; }
 }
 
 /* Hero */
