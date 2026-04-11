@@ -3,6 +3,7 @@ set -e
 
 APP_NAME="MD Preview"
 BUNDLE_ID="com.mdpreview.app"
+MD_UTI="net.daringfireball.markdown"
 BIN="target/release/md-preview"
 APP_DIR="target/${APP_NAME}.app"
 
@@ -48,7 +49,11 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
             <key>CFBundleTypeRole</key>
             <string>Viewer</string>
             <key>LSHandlerRank</key>
-            <string>Default</string>
+            <string>Owner</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>net.daringfireball.markdown</string>
+            </array>
             <key>CFBundleTypeExtensions</key>
             <array>
                 <string>md</string>
@@ -60,6 +65,29 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
             <string>AppIcon</string>
         </dict>
     </array>
+    <key>UTImportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>net.daringfireball.markdown</string>
+            <key>UTTypeDescription</key>
+            <string>Markdown Document</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.plain-text</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>md</string>
+                    <string>markdown</string>
+                    <string>mdown</string>
+                    <string>mkd</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
 </dict>
 </plist>
 PLIST
@@ -67,4 +95,5 @@ PLIST
 echo "Done! App bundle at: $APP_DIR"
 echo "Size: $(du -sh "$APP_DIR" | cut -f1)"
 echo ""
-echo "To install: cp -r \"$APP_DIR\" /Applications/"
+echo "To install:"
+echo "  ./install.sh"
