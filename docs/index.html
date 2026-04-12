@@ -295,7 +295,7 @@ footer a { color: inherit; }
   <p class="tagline" data-en="Ultra-lightweight Markdown preview. ~1MB binary, zero Electron, pure native." data-zh="超轻量 Markdown 预览工具。~1MB 体积，零 Electron，纯原生。"></p>
   <div class="cta">
     <a class="cta-primary" href="https://github.com/vorojar/md-preview/releases" data-en="Download" data-zh="下载"></a>
-    <a class="cta-secondary" href="https://github.com/vorojar/md-preview">&#9733; Star on GitHub</a>
+    <a class="cta-secondary" href="https://github.com/vorojar/md-preview" id="star-btn">&#9733; Star on GitHub</a>
   </div>
 </header>
 
@@ -424,6 +424,16 @@ footer a { color: inherit; }
   });
   apply(lang);
 })();
+
+// Dynamic star count
+fetch("https://api.github.com/repos/vorojar/md-preview")
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(d.stargazers_count!==undefined){
+      var btn=document.getElementById("star-btn");
+      btn.innerHTML="\u2605 Star "+d.stargazers_count;
+    }
+  }).catch(function(){});
 </script>
 
 </body>
