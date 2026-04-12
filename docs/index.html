@@ -274,122 +274,157 @@ footer a { color: inherit; }
   .stat { min-width: 140px; padding: 20px; }
   .stat .number { font-size: 28px; }
 }
+/* Language switcher */
+.lang-switch { position: fixed; top: 16px; right: 20px; z-index: 100; display: flex; gap: 4px; background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 2px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.lang-btn { padding: 4px 10px; border-radius: 4px; font-size: 13px; text-decoration: none; color: #666; transition: all 0.2s; }
+.lang-btn.active { background: #1a1a1a; color: #fff; }
+.lang-btn:hover:not(.active) { background: #f0f0f0; }
 </style>
 </head>
 <body>
 
+<!-- Language switcher -->
+<div class="lang-switch">
+  <a href="#" class="lang-btn active" data-lang="en">EN</a>
+  <a href="#" class="lang-btn" data-lang="zh">中文</a>
+</div>
+
 <header class="hero">
-  <div class="hero-icon">#</div>
+  <div class="hero-icon" aria-hidden="true">#</div>
   <h1>MD Preview</h1>
-  <p class="tagline">Ultra-lightweight Markdown preview. ~1MB binary, zero Electron, pure native.</p>
+  <p class="tagline" data-en="Ultra-lightweight Markdown preview. ~1MB binary, zero Electron, pure native." data-zh="超轻量 Markdown 预览工具。~1MB 体积，零 Electron，纯原生。"></p>
   <div class="cta">
-    <a class="cta-primary" href="https://github.com/vorojar/md-preview/releases">Download</a>
+    <a class="cta-primary" href="https://github.com/vorojar/md-preview/releases" data-en="Download" data-zh="下载"></a>
     <a class="cta-secondary" href="https://github.com/vorojar/md-preview">&#9733; Star on GitHub</a>
   </div>
-</section>
+</header>
 
 <section class="screenshot">
-  <img src="https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/welcome.png" alt="MD Preview app window showing the welcome screen with drag-and-drop and Cmd+O file opening on macOS" loading="lazy" width="1281" height="1080">
+  <img src="https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/welcome.png" alt="MD Preview app window" loading="lazy" width="1281" height="1080">
 </section>
 
 <section class="stats">
   <div class="stat">
     <div class="number">~1MB</div>
-    <div class="label">Binary size</div>
+    <div class="label" data-en="Binary size" data-zh="程序体积"></div>
   </div>
   <div class="stat">
     <div class="number">~15MB</div>
-    <div class="label">Memory usage</div>
+    <div class="label" data-en="Memory usage" data-zh="内存占用"></div>
   </div>
   <div class="stat">
     <div class="number">40+</div>
-    <div class="label">Languages highlighted</div>
+    <div class="label" data-en="Languages highlighted" data-zh="语言代码高亮"></div>
   </div>
   <div class="stat">
     <div class="number">0</div>
-    <div class="label">Dependencies to install</div>
+    <div class="label" data-en="Dependencies to install" data-zh="需要安装的依赖"></div>
   </div>
 </section>
 
 <section class="features">
   <div class="feature">
     <div class="icon">&#9889;</div>
-    <h3>Instant startup</h3>
-    <p>Opens in milliseconds. No bundled Chromium, no heavy runtime. Uses your system's native WebView.</p>
+    <h3 data-en="Instant startup" data-zh="秒开启动"></h3>
+    <p data-en="Opens in milliseconds. No bundled Chromium, no heavy runtime. Uses your system's native WebView." data-zh="毫秒级启动。不打包 Chromium，不依赖沉重运行时。直接使用系统原生 WebView。"></p>
   </div>
   <div class="feature">
     <div class="icon">&#128269;</div>
-    <h3>Live reload</h3>
-    <p>Edit your Markdown in any editor. MD Preview watches the file and refreshes automatically.</p>
+    <h3 data-en="Live reload" data-zh="实时刷新"></h3>
+    <p data-en="Edit your Markdown in any editor. MD Preview watches the file and refreshes automatically." data-zh="用任何编辑器写 Markdown，MD Preview 监听文件变化，自动刷新预览。"></p>
   </div>
   <div class="feature">
     <div class="icon">&#127912;</div>
-    <h3>Syntax highlighting</h3>
-    <p>40+ languages powered by highlight.js. Fully offline — no network needed.</p>
+    <h3 data-en="Syntax highlighting" data-zh="代码高亮"></h3>
+    <p data-en="40+ languages powered by highlight.js. Fully offline — no network needed." data-zh="基于 highlight.js 支持 40+ 种编程语言高亮。完全离线，无需网络。"></p>
   </div>
   <div class="feature">
     <div class="icon">&#127763;</div>
-    <h3>Dark mode</h3>
-    <p>Automatically follows your system theme. Light and dark, seamlessly.</p>
+    <h3 data-en="Dark mode" data-zh="暗色模式"></h3>
+    <p data-en="Automatically follows your system theme. Light and dark, seamlessly." data-zh="自动跟随系统主题切换，亮色暗色无缝衔接。"></p>
   </div>
   <div class="feature">
     <div class="icon">&#128196;</div>
-    <h3>Drag & drop</h3>
-    <p>Drop any .md file onto the window. Or use Cmd+O. Or pass it as a CLI argument.</p>
+    <h3 data-en="Drag & drop" data-zh="拖放打开"></h3>
+    <p data-en="Drop any .md file onto the window. Or use Cmd+O. Or pass it as a CLI argument." data-zh="把 .md 文件拖进窗口即可预览。也可以用 Cmd+O 或命令行打开。"></p>
   </div>
   <div class="feature">
     <div class="icon">&#127759;</div>
-    <h3>Cross-platform</h3>
-    <p>macOS (WebKit), Windows (WebView2), Linux (WebKitGTK). One codebase, native everywhere.</p>
+    <h3 data-en="Cross-platform" data-zh="跨平台"></h3>
+    <p data-en="macOS (WebKit), Windows (WebView2), Linux (WebKitGTK). One codebase, native everywhere." data-zh="macOS (WebKit)、Windows (WebView2)、Linux (WebKitGTK)，一套代码，处处原生。"></p>
   </div>
 </section>
 
 <section class="comparison-section">
-  <h2>Why MD Preview?</h2>
+  <h2 data-en="Why MD Preview?" data-zh="为什么选 MD Preview？"></h2>
   <table class="comparison">
     <tr>
       <th></th>
       <th>MD Preview</th>
-      <th>Electron-based</th>
+      <th data-en="Electron-based" data-zh="Electron 方案"></th>
     </tr>
     <tr class="highlight">
-      <td>Binary size</td>
+      <td data-en="Binary size" data-zh="程序体积"></td>
       <td><strong>~1.1 MB</strong></td>
       <td>150+ MB</td>
     </tr>
     <tr class="highlight">
-      <td>Memory</td>
+      <td data-en="Memory" data-zh="内存占用"></td>
       <td><strong>~15 MB</strong></td>
       <td>200+ MB</td>
     </tr>
     <tr class="highlight">
-      <td>Startup</td>
-      <td><strong>Instant</strong></td>
-      <td>2-5 seconds</td>
+      <td data-en="Startup" data-zh="启动速度"></td>
+      <td><strong data-en="Instant" data-zh="秒开"></strong></td>
+      <td data-en="2-5 seconds" data-zh="2-5 秒"></td>
     </tr>
     <tr>
-      <td>Runtime</td>
-      <td>System WebView</td>
-      <td>Bundled Chromium</td>
+      <td data-en="Runtime" data-zh="运行时"></td>
+      <td data-en="System WebView" data-zh="系统 WebView"></td>
+      <td data-en="Bundled Chromium" data-zh="打包 Chromium"></td>
     </tr>
   </table>
 </section>
 
 <section class="install">
-  <h2>Install</h2>
+  <h2 data-en="Install" data-zh="安装"></h2>
   <div class="install-steps">
-    <p><strong>macOS</strong> — Download DMG, drag to Applications, done.</p>
-    <p><strong>Windows</strong> — Download ZIP, extract, run <code>md-preview.exe</code>.</p>
-    <p><strong>Linux</strong> — Download tar.gz, extract, run <code>./md-preview</code>.</p>
+    <p><strong>macOS</strong> — <span data-en="Download DMG, drag to Applications, done." data-zh="下载 DMG，拖到应用程序，搞定。"></span></p>
+    <p><strong>Windows</strong> — <span data-en="Download ZIP, extract, run" data-zh="下载 ZIP，解压，运行"></span> <code>md-preview.exe</code></p>
+    <p><strong>Linux</strong> — <span data-en="Download tar.gz, extract, run" data-zh="下载 tar.gz，解压，运行"></span> <code>./md-preview</code></p>
   </div>
   <div class="cta" style="margin-top: 24px;">
-    <a class="cta-primary" href="https://github.com/vorojar/md-preview/releases/latest">Download Latest Release</a>
+    <a class="cta-primary" href="https://github.com/vorojar/md-preview/releases/latest" data-en="Download Latest Release" data-zh="下载最新版本"></a>
   </div>
 </section>
 
 <footer>
-  <p>Built with Rust + <a href="https://github.com/nicedavisit/nicedavisit">wry</a>. MIT License. <a href="https://github.com/vorojar/md-preview">Source on GitHub</a>.</p>
+  <p data-en='Built with Rust + <a href="https://github.com/nicedavisit/nicedavisit">wry</a>. MIT License. <a href="https://github.com/vorojar/md-preview">Source on GitHub</a>.'
+     data-zh='基于 Rust + <a href="https://github.com/nicedavisit/nicedavisit">wry</a> 构建。MIT 开源协议。<a href="https://github.com/vorojar/md-preview">GitHub 源码</a>。'></p>
 </footer>
+
+<script>
+(function(){
+  var lang = (navigator.language || '').startsWith('zh') ? 'zh' : 'en';
+  function apply(l) {
+    lang = l;
+    document.querySelectorAll('[data-'+l+']').forEach(function(el){
+      var val = el.getAttribute('data-'+l);
+      if (el.tagName === 'P' || el.tagName === 'SPAN' || el.tagName === 'STRONG' || el.tagName === 'TD' || el.tagName === 'TH') el.innerHTML = val;
+      else if (el.tagName === 'A') el.innerHTML = val;
+      else el.innerHTML = val;
+    });
+    document.querySelectorAll('.lang-btn').forEach(function(b){
+      b.classList.toggle('active', b.dataset.lang === l);
+    });
+    document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en';
+  }
+  document.querySelectorAll('.lang-btn').forEach(function(b){
+    b.addEventListener('click', function(e){ e.preventDefault(); apply(this.dataset.lang); });
+  });
+  apply(lang);
+})();
+</script>
 
 </body>
 </html>
