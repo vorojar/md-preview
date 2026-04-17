@@ -1,3 +1,8 @@
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
+
 use notify::{Event, EventKind, RecursiveMode, Watcher};
 use pulldown_cmark::{Options, Parser, html};
 use std::fs;

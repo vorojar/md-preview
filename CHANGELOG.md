@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+- Windows: release 构建关闭 console subsystem，双击/Finder 式启动不再弹黑色 cmd 窗口 (#2)
+- Windows: 通过 `winresource` 在 `.exe` 中嵌入应用图标（`assets/icon.ico`）
+- `gen_icon.py` 同时产出 macOS `.icns` 与 Windows 多尺寸 `.ico`（16/32/48/64/128/256）
+
 ## 0.3.0
 
 - 极简应用图标（白底 "#"，简洁干净）

@@ -151,6 +151,12 @@ def main():
     master.save(os.path.join(OUTPUT_DIR, "icon_1024.png"), "PNG")
     print(f"  icon_1024.png saved for reference")
 
+    # Windows .ico (multi-size, required for embedding into the .exe)
+    ico_sizes = [(s, s) for s in (16, 32, 48, 64, 128, 256)]
+    ico_path = os.path.join(OUTPUT_DIR, "icon.ico")
+    master.save(ico_path, format="ICO", sizes=ico_sizes)
+    print(f"  icon.ico created at: {ico_path}")
+
     # Clean up iconset directory
     import shutil
     shutil.rmtree(ICONSET_DIR)
