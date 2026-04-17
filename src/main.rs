@@ -448,7 +448,23 @@ fn main() {
     let file_path_for_ipc = Arc::clone(&file_path);
     let proxy_for_ipc = proxy.clone();
 
-    let builder = WebViewBuilder::new()
+    // Windows: steer WebView2's cache/cookie tree into %LOCALAPPDATA% instead of
+    // letting it drop next to the exe. Other platforms: use default (None).
+    let data_dir: Option<PathBuf> = {
+        #[cfg(target_os = "windows")]
+        {
+            let d = config_dir().join("WebView2");
+            let _ = fs::create_dir_all(&d);
+            Some(d)
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            None
+        }
+    };
+    let mut web_context = wry::WebContext::new(data_dir);
+
+    let builder = WebViewBuilder::with_web_context(&mut web_context)
         .with_html(&initial_page)
         .with_navigation_handler(|url: String| {
             // Let wry load the initial in-memory document; route any real URL click
@@ -503,15 +519,6 @@ fn main() {
                 }
             });"#,
         );
-
-    // Windows: keep WebView2's cache/cookie tree out of the exe directory.
-    #[cfg(target_os = "windows")]
-    let builder = {
-        use wry::WebViewBuilderExtWindows;
-        let data_dir = config_dir().join("WebView2");
-        let _ = fs::create_dir_all(&data_dir);
-        builder.with_data_directory(data_dir)
-    };
 
     let webview = builder.build(&window).expect("failed to build webview");
 
