@@ -197,7 +197,8 @@ fn html_escape_ta(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;")
 }
 
-fn build_page(preview_html: &str, raw_md: &str, s: &Strings) -> String {
+fn build_page(preview_html: &str, raw_md: &str, s: &Strings, empty: bool) -> String {
+    let body_class = if empty { "empty" } else { "" };
     format!(
         r#"<!DOCTYPE html><html><head><meta charset="utf-8">
 <style id="hljs-light">{css_light}</style>
@@ -251,11 +252,15 @@ body {{
   height: 60vh; color: #999; font-size: 18px; gap: 12px; }}
 .empty .icon {{ font-size: 48px; opacity: 0.4; }}
 
-/* Floating toolbar (top-right) */
+/* Floating toolbar (top-right) — hover-reveal, hidden in empty state */
 .toolbar {{
   position: fixed; top: 10px; right: 12px;
   display: flex; gap: 6px; z-index: 100;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.18s ease;
 }}
+html:hover .toolbar {{ opacity: 1; pointer-events: auto; }}
+body.empty .toolbar {{ display: none !important; }}
 .toolbar button {{
   width: 34px; height: 34px; padding: 0;
   background: rgba(255,255,255,0.8);
@@ -289,14 +294,15 @@ body {{
   padding: 0;
 }}
 body.editing #preview {{ display: none; }}
-body.editing #editor {{ display: block; }}
+body.editing #editor {{ display: block; padding: 16px 24px; min-height: 100vh; }}
+body.editing #app {{ max-width: none; padding: 0; }}
 
 @media print {{
   .toolbar, #editor {{ display: none !important; }}
   #preview {{ display: block !important; }}
   #app {{ max-width: none; padding: 0; }}
 }}
-</style></head><body>
+</style></head><body class="{body_class}">
 <div class="toolbar">
   <button id="btn-toggle" title="{btn_edit}" aria-label="{btn_edit}"></button>
   <button id="btn-print" title="{btn_print}" aria-label="{btn_print}"></button>
@@ -382,6 +388,7 @@ body.editing #editor {{ display: block; }}
     }});
   }};
   window.__setContent = function(previewHtml, rawMd) {{
+    document.body.classList.remove('empty');
     window.__setPreview(previewHtml);
     if (!inEdit() || !dirty) {{
       ta.value = rawMd;
@@ -407,6 +414,7 @@ body.editing #editor {{ display: block; }}
         btn_edit = s.btn_edit,
         btn_preview = s.btn_preview,
         btn_print = s.btn_print,
+        body_class = body_class,
     )
 }
 
@@ -420,7 +428,7 @@ fn escape_js(s: &str) -> String {
 fn load_and_render(path: &PathBuf, s: &Strings) -> Option<String> {
     fs::read_to_string(path).ok().map(|raw| {
         let html_body = md_to_html(&raw);
-        build_page(&html_body, &raw, s)
+        build_page(&html_body, &raw, s, false)
     })
 }
 
@@ -573,6 +581,7 @@ fn main() {
                 ),
                 "",
                 &strings,
+                true,
             )
         }),
         None => build_page(
@@ -582,6 +591,7 @@ fn main() {
             ),
             "",
             &strings,
+            true,
         ),
     };
 
