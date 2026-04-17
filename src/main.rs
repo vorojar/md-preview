@@ -13,6 +13,8 @@ use tao::event_loop::{ControlFlow, EventLoop, EventLoopBuilder};
 use tao::window::WindowBuilder;
 use wry::WebViewBuilder;
 
+const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.ico");
+
 #[derive(Debug)]
 enum UserEvent {
     FileChanged,
@@ -111,16 +113,21 @@ fn load_and_render(path: &PathBuf) -> Option<String> {
     })
 }
 
-/// On first launch, register as default handler for .md files (macOS)
+/// Decode embedded icon.ico to an RGBA tao Icon for the window chrome.
+fn load_window_icon() -> Option<tao::window::Icon> {
+    let img = image::load_from_memory_with_format(ICON_BYTES, image::ImageFormat::Ico).ok()?;
+    let rgba = img.to_rgba8();
+    let (w, h) = rgba.dimensions();
+    tao::window::Icon::from_rgba(rgba.into_raw(), w, h).ok()
+}
+
 #[cfg(target_os = "macos")]
 fn register_as_default() {
     use std::process::Command;
-    // Check if already registered by looking for a marker file
     let marker = dirs_hint().join(".md-preview-registered");
     if marker.exists() {
         return;
     }
-    // Use swift to call LSSetDefaultRoleHandlerForContentType
     let _ = Command::new("swift")
         .arg("-")
         .stdin(std::process::Stdio::piped())
@@ -132,7 +139,6 @@ fn register_as_default() {
             }
             child.wait()
         });
-    // Create marker
     let _ = fs::create_dir_all(marker.parent().unwrap());
     let _ = fs::write(&marker, "");
 }
@@ -145,7 +151,91 @@ fn dirs_hint() -> PathBuf {
         .join(".config/md-preview")
 }
 
-#[cfg(not(target_os = "macos"))]
+/// Windows: write HKCU registry so .md shows up in the "Open with" list, then
+/// prompt the user once to finish wiring the default app (Win8+ blocks silent
+/// default-handler changes — only the Settings app can confirm it).
+#[cfg(target_os = "windows")]
+fn register_as_default() {
+    use winreg::RegKey;
+    use winreg::enums::HKEY_CURRENT_USER;
+
+    let marker_dir = windows_config_dir();
+    let marker = marker_dir.join(".md-preview-registered");
+    if marker.exists() {
+        return;
+    }
+
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    let exe_str = exe.to_string_lossy().to_string();
+    let progid = "MDPreview.md";
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+
+    // Advertise MD Preview as a choice for these extensions.
+    for ext in [".md", ".markdown", ".mdown", ".mkd"] {
+        let path = format!(r"Software\Classes\{ext}\OpenWithProgids");
+        if let Ok((key, _)) = hkcu.create_subkey(&path) {
+            let _ = key.set_value::<String, _>(progid, &String::new());
+        }
+    }
+
+    // ProgID definition: description, icon, open command.
+    let progid_root = format!(r"Software\Classes\{progid}");
+    if let Ok((k, _)) = hkcu.create_subkey(&progid_root) {
+        let _ = k.set_value("", &"Markdown Document".to_string());
+        let _ = k.set_value("FriendlyTypeName", &"Markdown Document".to_string());
+    }
+    if let Ok((k, _)) = hkcu.create_subkey(format!(r"{progid_root}\DefaultIcon")) {
+        let _ = k.set_value("", &format!("\"{exe_str}\",0"));
+    }
+    if let Ok((k, _)) = hkcu.create_subkey(format!(r"{progid_root}\shell\open\command")) {
+        let _ = k.set_value("", &format!("\"{exe_str}\" \"%1\""));
+    }
+
+    // Applications\<exe-name> entry gives us a friendly label in the "Open with" menu.
+    if let Some(exe_name) = exe.file_name().map(|n| n.to_string_lossy().to_string()) {
+        let app_root = format!(r"Software\Classes\Applications\{exe_name}");
+        if let Ok((k, _)) = hkcu.create_subkey(&app_root) {
+            let _ = k.set_value("FriendlyAppName", &"MD Preview".to_string());
+        }
+        if let Ok((k, _)) = hkcu.create_subkey(format!(r"{app_root}\shell\open\command")) {
+            let _ = k.set_value("", &format!("\"{exe_str}\" \"%1\""));
+        }
+        if let Ok((k, _)) = hkcu.create_subkey(format!(r"{app_root}\SupportedTypes")) {
+            for ext in [".md", ".markdown", ".mdown", ".mkd"] {
+                let _ = k.set_value::<String, _>(ext, &String::new());
+            }
+        }
+    }
+
+    let _ = fs::create_dir_all(&marker_dir);
+    let _ = fs::write(&marker, "");
+
+    // Nudge user to finish the default-app assignment. Win10+ cannot set it silently.
+    let answer = rfd::MessageDialog::new()
+        .set_title("MD Preview")
+        .set_description(
+            "MD Preview 已注册为 .md / .markdown 的可选打开方式。\n\n\
+             由于 Windows 限制，仅应用本身无法设为默认打开方式。\
+             是否现在打开「设置 › 默认应用」手动关联？",
+        )
+        .set_buttons(rfd::MessageButtons::YesNo)
+        .show();
+    if matches!(answer, rfd::MessageDialogResult::Yes) {
+        let _ = open::that("ms-settings:defaultapps");
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_config_dir() -> PathBuf {
+    std::env::var("APPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join("md-preview")
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn register_as_default() {}
 
 fn main() {
@@ -173,9 +263,13 @@ fn main() {
         .map(|n| format!("{} — MD Preview", n.to_string_lossy()))
         .unwrap_or_else(|| "MD Preview".to_string());
 
-    let window = WindowBuilder::new()
+    let mut window_builder = WindowBuilder::new()
         .with_title(&title)
-        .with_inner_size(tao::dpi::LogicalSize::new(900.0, 700.0))
+        .with_inner_size(tao::dpi::LogicalSize::new(900.0, 700.0));
+    if let Some(icon) = load_window_icon() {
+        window_builder = window_builder.with_window_icon(Some(icon));
+    }
+    let window = window_builder
         .build(&event_loop)
         .expect("failed to build window");
 
@@ -194,6 +288,19 @@ fn main() {
 
     let webview = WebViewBuilder::new()
         .with_html(&initial_page)
+        .with_navigation_handler(|url: String| {
+            // Let wry load the initial in-memory document; route any real URL click
+            // (http/https/mailto) to the system default handler.
+            if url.starts_with("http://")
+                || url.starts_with("https://")
+                || url.starts_with("mailto:")
+            {
+                let _ = open::that(&url);
+                false
+            } else {
+                true
+            }
+        })
         .with_ipc_handler(move |msg| {
             let body = msg.body();
             if body == "open" {

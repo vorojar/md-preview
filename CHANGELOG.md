@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2
+
+- Windows：首次启动写 HKCU 注册表（.md/.markdown/.mdown/.mkd 的 OpenWithProgids + ProgID 定义 + Applications 条目），并弹窗引导用户去「设置 › 默认应用」完成关联（Win10+ 禁止应用静默设为默认）
+- Windows：窗口左上角 HICON 现在使用应用图标（此前为系统默认）
+- Windows：图标改为"白底粗体 #"风格，与 macOS 视觉一致；`gen_ico.py` 独立绘制每个尺寸（16/32/48/64/128/256），小尺寸不再因降采样而糊
+- 所有平台：md 中的 http/https/mailto 链接改为通过系统默认浏览器/邮件客户端打开，不再劫持在 WebView 内导航
+- 新增依赖：`image`（png+ico 解码，用于窗口图标）+ `winreg`（Windows-only）
+
 ## 0.3.1
 
 - Windows: release 构建关闭 console subsystem，双击/Finder 式启动不再弹黑色 cmd 窗口 (#2)
