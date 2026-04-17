@@ -41,7 +41,6 @@ fn build_page(body: &str) -> String {
         r#"<!DOCTYPE html><html><head><meta charset="utf-8">
 <style id="hljs-light">{css_light}</style>
 <style id="hljs-dark" media="not all">{css_dark}</style>
-<script>{hljs_js}</script>
 <script>
 (function(){{
   var mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -89,8 +88,21 @@ input[type="checkbox"] {{ margin-right: 6px; }}
 .empty {{ display: flex; flex-direction: column; align-items: center; justify-content: center;
   height: 60vh; color: #999; font-size: 18px; gap: 12px; }}
 .empty .icon {{ font-size: 48px; opacity: 0.4; }}
-</style></head><body>{body}</body>
-<script>hljs.highlightAll();</script>
+</style></head><body>{body}
+<script id="hljs-src" type="text/x-hljs">{hljs_js}</script>
+<script>
+(function(){{
+  // First paint is not blocked by parsing/running the 119KB hljs bundle above —
+  // the <script type="text/x-hljs"> tag is treated as inert text by the browser.
+  // Defer eval + highlighting to idle time so users see content immediately.
+  var run = function(){{
+    var src = document.getElementById('hljs-src').textContent;
+    (new Function(src))();
+    if (typeof hljs !== 'undefined') hljs.highlightAll();
+  }};
+  (window.requestIdleCallback || function(fn){{ return setTimeout(fn, 0); }})(run);
+}})();
+</script>
 </html>"#,
         css_light = HLJS_LIGHT,
         css_dark = HLJS_DARK,
@@ -387,7 +399,14 @@ fn main() {
                                 requestAnimationFrame(function(){{
                                     document.documentElement.scrollTop = s;
                                     document.body.scrollTop = s;
-                                    if(typeof hljs!=='undefined') hljs.highlightAll();
+                                    var idle = window.requestIdleCallback || function(fn){{ return setTimeout(fn, 0); }};
+                                    idle(function(){{
+                                        if (typeof hljs === 'undefined') {{
+                                            var el = document.getElementById('hljs-src');
+                                            if (el) (new Function(el.textContent))();
+                                        }}
+                                        if (typeof hljs !== 'undefined') hljs.highlightAll();
+                                    }});
                                 }});
                             }})()"#,
                             escape_js(&page)

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3
+
+- 首屏渲染加速：highlight.js（119KB）从同步 inline 改为 `<script type="text/x-hljs">` 的惰性文本，首次 paint 不再为 hljs 解析/执行等待；在 `requestIdleCallback` 里异步求值并上色，中低端机首屏阻塞从约 150ms 降至约 30ms
+- 代码块首屏先以纯文本显示，~50ms 后自动着色（感知瞬间）
+- 文件切换路径同步改走 idle 上色，避免对首次 idle callback 的时序竞态
+
 ## 0.3.2
 
 - Windows：首次启动写 HKCU 注册表（.md/.markdown/.mdown/.mkd 的 OpenWithProgids + ProgID 定义 + Applications 条目），并弹窗引导用户去「设置 › 默认应用」完成关联（Win10+ 禁止应用静默设为默认）
