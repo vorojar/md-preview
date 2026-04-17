@@ -1,5 +1,7 @@
 # MD Preview
 
+**English · [简体中文](README_zh.md)**
+
 [![GitHub stars](https://img.shields.io/github/stars/vorojar/md-preview)](https://github.com/vorojar/md-preview/stargazers) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![Release](https://img.shields.io/github/v/release/vorojar/md-preview)](https://github.com/vorojar/md-preview/releases) [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](https://github.com/vorojar/md-preview/releases) [![Binary size](https://img.shields.io/badge/binary%20size-~1MB-green)](https://github.com/vorojar/md-preview)
 
 > Ultra-lightweight Markdown preview app. ~1MB binary, zero Electron, pure native.
@@ -69,7 +71,7 @@ md-preview
 ## Tech Stack
 
 - **[Rust](https://www.rust-lang.org/)** — systems language, zero-cost abstractions
-- **[wry](https://github.com/nicedavisit/nicedavisit)** — cross-platform WebView library (macOS: WebKit, Windows: WebView2, Linux: WebKitGTK)
+- **[wry](https://github.com/tauri-apps/wry)** — cross-platform WebView library (macOS: WebKit, Windows: WebView2, Linux: WebKitGTK)
 - **[pulldown-cmark](https://github.com/raphlinus/pulldown-cmark)** — CommonMark/GFM Markdown parser
 - **[highlight.js](https://highlightjs.org/)** — syntax highlighting for 40+ languages (embedded offline)
 - **[notify](https://github.com/notify-rs/notify)** — cross-platform file watcher
