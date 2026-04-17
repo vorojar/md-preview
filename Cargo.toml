@@ -11,6 +11,7 @@ rfd = "0.15"
 notify = "7"
 open = "5"
 image = { version = "0.25", default-features = false, features = ["png", "ico"] }
+sys-locale = "0.3"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.4
+
+- 窗口首次启动居中显示（计算 primary monitor 的可见区域）
+- 记住窗口位置/大小：关闭时写入 `<config>/window.geom`，下次启动恢复；跨屏幕断开场景下自动回退居中，避免窗口飘到不可见区
+- 空态提示与 Windows 首次启动弹窗按系统语言切换（`zh*` → 中文，其它 → 英文，基于 `sys-locale`）
+- Windows：WebView2 的 UserDataFolder 迁移到 `%LOCALAPPDATA%\md-preview\WebView2`，exe 同目录不再产生 `*.WebView2/` 缓存目录
+- 统一 `config_dir()` 跨平台：Windows 使用 `%LOCALAPPDATA%`，macOS/Linux 使用 `~/.config/md-preview`
+
 ## 0.3.3
 
 - 首屏渲染加速：highlight.js（119KB）从同步 inline 改为 `<script type="text/x-hljs">` 的惰性文本，首次 paint 不再为 hljs 解析/执行等待；在 `requestIdleCallback` 里异步求值并上色，中低端机首屏阻塞从约 150ms 降至约 30ms
