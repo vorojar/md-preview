@@ -35,12 +35,9 @@ fn detect_lang() -> Lang {
         .unwrap_or(Lang::En)
 }
 
-#[allow(dead_code)] // register_title / register_body used only on Windows
 struct Strings {
     drop_hint: &'static str,
     cannot_read: &'static str,
-    register_title: &'static str,
-    register_body: &'static str,
 }
 
 impl Strings {
@@ -49,20 +46,10 @@ impl Strings {
             Lang::Zh => Strings {
                 drop_hint: "拖入 .md 文件 或按 Cmd/Ctrl+O 打开",
                 cannot_read: "无法读取文件",
-                register_title: "MD Preview",
-                register_body:
-                    "MD Preview 已注册为 .md / .markdown 的可选打开方式。\n\n\
-                     由于 Windows 限制，应用本身无法静默设为默认打开方式。\
-                     是否现在打开「设置 › 默认应用」手动关联？",
             },
             Lang::En => Strings {
                 drop_hint: "Drop a .md file here or press Cmd/Ctrl+O to open",
                 cannot_read: "Cannot read file",
-                register_title: "MD Preview",
-                register_body:
-                    "MD Preview is now listed as an option for .md / .markdown files.\n\n\
-                     Windows does not allow apps to silently set themselves as the default. \
-                     Open Settings › Default apps now to finish the association?",
             },
         }
     }
@@ -317,7 +304,7 @@ fn register_as_default(_lang: Lang) {
 /// prompt the user once to finish wiring the default app (Win8+ blocks silent
 /// default-handler changes — only the Settings app can confirm it).
 #[cfg(target_os = "windows")]
-fn register_as_default(lang: Lang) {
+fn register_as_default(_lang: Lang) {
     use winreg::RegKey;
     use winreg::enums::HKEY_CURRENT_USER;
 
@@ -373,17 +360,9 @@ fn register_as_default(lang: Lang) {
 
     let _ = fs::create_dir_all(&marker_dir);
     let _ = fs::write(&marker, "");
-
-    // Nudge user to finish the default-app assignment. Win10+ cannot set it silently.
-    let s = Strings::for_lang(lang);
-    let answer = rfd::MessageDialog::new()
-        .set_title(s.register_title)
-        .set_description(s.register_body)
-        .set_buttons(rfd::MessageButtons::YesNo)
-        .show();
-    if matches!(answer, rfd::MessageDialogResult::Yes) {
-        let _ = open::that("ms-settings:defaultapps");
-    }
+    // Intentionally no dialog: users can pick MD Preview via "Open with"
+    // whenever they want, and Win10+ blocks silent default-handler changes
+    // anyway — asking them to click through Settings on first launch is noise.
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
