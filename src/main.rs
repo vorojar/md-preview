@@ -8,6 +8,7 @@ use pulldown_cmark::{Options, Parser, html};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tao::dpi::{LogicalPosition, LogicalSize};
 use tao::event::{Event as TaoEvent, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoop, EventLoopBuilder};
@@ -20,7 +21,9 @@ const DEFAULT_H: f64 = 700.0;
 
 #[derive(Debug)]
 enum UserEvent {
-    FileChanged,
+    FileChanged, // external change: refresh preview AND textarea
+    FileSaved,   // our own save: refresh preview only, leave textarea cursor alone
+    DirtyChanged(bool),
 }
 
 #[derive(Copy, Clone)]
@@ -38,6 +41,9 @@ fn detect_lang() -> Lang {
 struct Strings {
     drop_hint: &'static str,
     cannot_read: &'static str,
+    btn_edit: &'static str,
+    btn_preview: &'static str,
+    btn_print: &'static str,
 }
 
 impl Strings {
@@ -46,10 +52,16 @@ impl Strings {
             Lang::Zh => Strings {
                 drop_hint: "拖入 .md 文件 或按 Cmd/Ctrl+O 打开",
                 cannot_read: "无法读取文件",
+                btn_edit: "编辑 (Cmd/Ctrl+E)",
+                btn_preview: "预览 (Cmd/Ctrl+E)",
+                btn_print: "打印 (Cmd/Ctrl+P)",
             },
             Lang::En => Strings {
                 drop_hint: "Drop a .md file here or press Cmd/Ctrl+O to open",
                 cannot_read: "Cannot read file",
+                btn_edit: "Edit (Cmd/Ctrl+E)",
+                btn_preview: "Preview (Cmd/Ctrl+E)",
+                btn_print: "Print (Cmd/Ctrl+P)",
             },
         }
     }
@@ -181,7 +193,11 @@ const HLJS_JS: &str = include_str!("../assets/hljs/highlight.min.js");
 const HLJS_LIGHT: &str = include_str!("../assets/hljs/github.min.css");
 const HLJS_DARK: &str = include_str!("../assets/hljs/github-dark.min.css");
 
-fn build_page(body: &str) -> String {
+fn html_escape_ta(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;")
+}
+
+fn build_page(preview_html: &str, raw_md: &str, s: &Strings) -> String {
     format!(
         r#"<!DOCTYPE html><html><head><meta charset="utf-8">
 <style id="hljs-light">{css_light}</style>
@@ -200,46 +216,180 @@ fn build_page(body: &str) -> String {
 :root {{ color-scheme: light dark; }}
 body {{
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  max-width: 820px; margin: 0 auto; padding: 24px;
+  margin: 0; padding: 0;
   line-height: 1.6; font-size: 15px;
   color: #1a1a1a; background: #fff;
 }}
+#app {{ max-width: 820px; margin: 0 auto; padding: 24px; }}
 @media (prefers-color-scheme: dark) {{
   body {{ color: #d4d4d4; background: #1e1e1e; }}
-  a {{ color: #6cb6ff; }}
-  pre {{ background: #2d2d2d !important; }}
-  code:not(pre code) {{ background: #2d2d2d; }}
-  blockquote {{ border-color: #444; color: #999; }}
-  table th {{ background: #2d2d2d; }}
-  table td, table th {{ border-color: #444; }}
-  hr {{ border-color: #333; }}
+  #preview a {{ color: #6cb6ff; }}
+  #preview pre {{ background: #2d2d2d !important; }}
+  #preview code:not(pre code) {{ background: #2d2d2d; }}
+  #preview blockquote {{ border-color: #444; color: #999; }}
+  #preview table th {{ background: #2d2d2d; }}
+  #preview table td, #preview table th {{ border-color: #444; }}
+  #preview hr {{ border-color: #333; }}
 }}
-h1,h2,h3,h4 {{ margin-top: 1.4em; }}
-h1 {{ border-bottom: 1px solid #e1e4e8; padding-bottom: .3em; }}
-h2 {{ border-bottom: 1px solid #e1e4e8; padding-bottom: .2em; }}
-code {{ background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 90%; }}
-pre {{ background: #f6f8fa; padding: 16px; border-radius: 8px; overflow-x: auto; }}
-pre code {{ background: none; padding: 0; font-size: 14px; }}
-blockquote {{ border-left: 4px solid #ddd; margin: 0; padding: 0 1em; color: #666; }}
-table {{ border-collapse: collapse; width: 100%; }}
-table th, table td {{ border: 1px solid #ddd; padding: 8px 12px; text-align: left; }}
-table th {{ background: #f6f8fa; font-weight: 600; }}
-img {{ max-width: 100%; }}
-hr {{ border: none; border-top: 1px solid #e1e4e8; margin: 2em 0; }}
-a {{ color: #0969da; text-decoration: none; }}
-a:hover {{ text-decoration: underline; }}
-ul, ol {{ padding-left: 2em; }}
-input[type="checkbox"] {{ margin-right: 6px; }}
+#preview h1,#preview h2,#preview h3,#preview h4 {{ margin-top: 1.4em; }}
+#preview h1 {{ border-bottom: 1px solid #e1e4e8; padding-bottom: .3em; }}
+#preview h2 {{ border-bottom: 1px solid #e1e4e8; padding-bottom: .2em; }}
+#preview code {{ background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 90%; }}
+#preview pre {{ background: #f6f8fa; padding: 16px; border-radius: 8px; overflow-x: auto; }}
+#preview pre code {{ background: none; padding: 0; font-size: 14px; }}
+#preview blockquote {{ border-left: 4px solid #ddd; margin: 0; padding: 0 1em; color: #666; }}
+#preview table {{ border-collapse: collapse; width: 100%; }}
+#preview table th, #preview table td {{ border: 1px solid #ddd; padding: 8px 12px; text-align: left; }}
+#preview table th {{ background: #f6f8fa; font-weight: 600; }}
+#preview img {{ max-width: 100%; }}
+#preview hr {{ border: none; border-top: 1px solid #e1e4e8; margin: 2em 0; }}
+#preview a {{ color: #0969da; text-decoration: none; }}
+#preview a:hover {{ text-decoration: underline; }}
+#preview ul, #preview ol {{ padding-left: 2em; }}
+#preview input[type="checkbox"] {{ margin-right: 6px; }}
 .empty {{ display: flex; flex-direction: column; align-items: center; justify-content: center;
   height: 60vh; color: #999; font-size: 18px; gap: 12px; }}
 .empty .icon {{ font-size: 48px; opacity: 0.4; }}
-</style></head><body>{body}
+
+/* Floating toolbar (top-right) */
+.toolbar {{
+  position: fixed; top: 10px; right: 12px;
+  display: flex; gap: 6px; z-index: 100;
+}}
+.toolbar button {{
+  width: 34px; height: 34px; padding: 0;
+  background: rgba(255,255,255,0.8);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 8px;
+  display: grid; place-items: center;
+  cursor: pointer; color: #555;
+  transition: color 0.15s, background 0.15s;
+}}
+.toolbar button:hover {{ color: #000; background: rgba(255,255,255,1); }}
+@media (prefers-color-scheme: dark) {{
+  .toolbar button {{
+    background: rgba(40,40,40,0.8);
+    border-color: rgba(255,255,255,0.1);
+    color: #bbb;
+  }}
+  .toolbar button:hover {{ color: #fff; background: rgba(55,55,55,1); }}
+}}
+
+/* Source editor textarea */
+#editor {{
+  display: none;
+  width: 100%;
+  min-height: calc(100vh - 48px);
+  box-sizing: border-box;
+  border: none; outline: none; resize: none;
+  font: 14px/1.6 "SF Mono","Menlo","Consolas",monospace;
+  background: transparent; color: inherit;
+  padding: 0;
+}}
+body.editing #preview {{ display: none; }}
+body.editing #editor {{ display: block; }}
+
+@media print {{
+  .toolbar, #editor {{ display: none !important; }}
+  #preview {{ display: block !important; }}
+  #app {{ max-width: none; padding: 0; }}
+}}
+</style></head><body>
+<div class="toolbar">
+  <button id="btn-toggle" title="{btn_edit}" aria-label="{btn_edit}"></button>
+  <button id="btn-print" title="{btn_print}" aria-label="{btn_print}"></button>
+</div>
+<div id="app">
+  <div id="preview">{preview_html}</div>
+  <textarea id="editor" spellcheck="false">{raw_md_escaped}</textarea>
+</div>
 <script id="hljs-src" type="text/x-hljs">{hljs_js}</script>
 <script>
 (function(){{
-  // First paint is not blocked by parsing/running the 119KB hljs bundle above —
-  // the <script type="text/x-hljs"> tag is treated as inert text by the browser.
-  // Defer eval + highlighting to idle time so users see content immediately.
+  var ICON_EDIT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>';
+  var ICON_VIEW = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var ICON_PRINT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>';
+  var L_EDIT = '{btn_edit}', L_VIEW = '{btn_preview}';
+
+  var btnToggle = document.getElementById('btn-toggle');
+  var btnPrint = document.getElementById('btn-print');
+  var ta = document.getElementById('editor');
+  var dirty = false;
+
+  btnToggle.innerHTML = ICON_EDIT;
+  btnPrint.innerHTML = ICON_PRINT;
+
+  function inEdit() {{ return document.body.classList.contains('editing'); }}
+  function setDirty(d) {{
+    if (dirty === d) return;
+    dirty = d;
+    window.ipc.postMessage(d ? 'dirty:1' : 'dirty:0');
+  }}
+  function save() {{
+    window.ipc.postMessage('save:' + ta.value);
+    setDirty(false);
+  }}
+  function enterEdit() {{
+    document.body.classList.add('editing');
+    btnToggle.innerHTML = ICON_VIEW;
+    btnToggle.title = L_VIEW;
+    btnToggle.setAttribute('aria-label', L_VIEW);
+    ta.focus();
+  }}
+  function leaveEdit() {{
+    if (dirty) save();
+    document.body.classList.remove('editing');
+    btnToggle.innerHTML = ICON_EDIT;
+    btnToggle.title = L_EDIT;
+    btnToggle.setAttribute('aria-label', L_EDIT);
+  }}
+
+  btnToggle.addEventListener('click', function() {{
+    if (inEdit()) leaveEdit(); else enterEdit();
+  }});
+  btnPrint.addEventListener('click', function() {{
+    if (inEdit()) leaveEdit();
+    setTimeout(function(){{ window.print(); }}, 0);
+  }});
+  ta.addEventListener('input', function() {{ setDirty(true); }});
+
+  document.addEventListener('keydown', function(e) {{
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'o' || e.key === 'O')) {{
+      e.preventDefault();
+      window.ipc.postMessage('open');
+      return;
+    }}
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'e' || e.key === 'E')) {{
+      e.preventDefault();
+      if (inEdit()) leaveEdit(); else enterEdit();
+      return;
+    }}
+    if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {{
+      if (inEdit()) {{ e.preventDefault(); save(); }}
+      return;
+    }}
+    if (e.key === 'Escape' && inEdit()) {{ leaveEdit(); }}
+  }});
+
+  // Called by Rust after a save (only preview is refreshed) or after an
+  // external file change (both preview + textarea are refreshed).
+  window.__setPreview = function(previewHtml) {{
+    document.getElementById('preview').innerHTML = previewHtml;
+    (window.requestIdleCallback || function(fn){{ return setTimeout(fn, 0); }})(function() {{
+      if (typeof hljs !== 'undefined') hljs.highlightAll();
+    }});
+  }};
+  window.__setContent = function(previewHtml, rawMd) {{
+    window.__setPreview(previewHtml);
+    if (!inEdit() || !dirty) {{
+      ta.value = rawMd;
+      setDirty(false);
+    }}
+  }};
+
+  // Defer hljs parse + initial highlight to idle time.
   var run = function(){{
     var src = document.getElementById('hljs-src').textContent;
     (new Function(src))();
@@ -248,11 +398,15 @@ input[type="checkbox"] {{ margin-right: 6px; }}
   (window.requestIdleCallback || function(fn){{ return setTimeout(fn, 0); }})(run);
 }})();
 </script>
-</html>"#,
+</body></html>"#,
         css_light = HLJS_LIGHT,
         css_dark = HLJS_DARK,
         hljs_js = HLJS_JS,
-        body = body
+        preview_html = preview_html,
+        raw_md_escaped = html_escape_ta(raw_md),
+        btn_edit = s.btn_edit,
+        btn_preview = s.btn_preview,
+        btn_print = s.btn_print,
     )
 }
 
@@ -263,10 +417,10 @@ fn escape_js(s: &str) -> String {
         .replace('\r', "\\r")
 }
 
-fn load_and_render(path: &PathBuf) -> Option<String> {
-    fs::read_to_string(path).ok().map(|content| {
-        let html_body = md_to_html(&content);
-        build_page(&html_body)
+fn load_and_render(path: &PathBuf, s: &Strings) -> Option<String> {
+    fs::read_to_string(path).ok().map(|raw| {
+        let html_body = md_to_html(&raw);
+        build_page(&html_body, &raw, s)
     })
 }
 
@@ -411,20 +565,30 @@ fn main() {
         .expect("failed to build window");
 
     let initial_page = match &initial_file {
-        Some(path) => load_and_render(path).unwrap_or_else(|| {
-            build_page(&format!(
-                r#"<div class="empty"><div class="icon">#</div>{}</div>"#,
-                strings.cannot_read
-            ))
+        Some(path) => load_and_render(path, &strings).unwrap_or_else(|| {
+            build_page(
+                &format!(
+                    r#"<div class="empty"><div class="icon">#</div>{}</div>"#,
+                    strings.cannot_read
+                ),
+                "",
+                &strings,
+            )
         }),
-        None => build_page(&format!(
-            r#"<div class="empty"><div class="icon">#</div>{}</div>"#,
-            strings.drop_hint
-        )),
+        None => build_page(
+            &format!(
+                r#"<div class="empty"><div class="icon">#</div>{}</div>"#,
+                strings.drop_hint
+            ),
+            "",
+            &strings,
+        ),
     };
 
     let file_path: Arc<Mutex<Option<PathBuf>>> = Arc::new(Mutex::new(initial_file));
+    let last_self_write: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
     let file_path_for_ipc = Arc::clone(&file_path);
+    let last_self_write_for_ipc = Arc::clone(&last_self_write);
     let proxy_for_ipc = proxy.clone();
 
     // Windows: steer WebView2's cache/cookie tree into %LOCALAPPDATA% instead of
@@ -468,6 +632,18 @@ fn main() {
                     *file_path_for_ipc.lock().unwrap() = Some(path);
                     let _ = proxy_for_ipc.send_event(UserEvent::FileChanged);
                 }
+            } else if body == "dirty:1" {
+                let _ = proxy_for_ipc.send_event(UserEvent::DirtyChanged(true));
+            } else if body == "dirty:0" {
+                let _ = proxy_for_ipc.send_event(UserEvent::DirtyChanged(false));
+            } else if let Some(content) = body.strip_prefix("save:") {
+                let fp = file_path_for_ipc.lock().unwrap().clone();
+                if let Some(path) = fp {
+                    *last_self_write_for_ipc.lock().unwrap() = Some(Instant::now());
+                    if fs::write(&path, content).is_ok() {
+                        let _ = proxy_for_ipc.send_event(UserEvent::FileSaved);
+                    }
+                }
             }
         })
         .with_drag_drop_handler({
@@ -490,14 +666,7 @@ fn main() {
                 true
             }
         })
-        .with_initialization_script(
-            r#"document.addEventListener('keydown', e => {
-                if ((e.metaKey || e.ctrlKey) && e.key === 'o') {
-                    e.preventDefault();
-                    window.ipc.postMessage('open');
-                }
-            });"#,
-        );
+        ;
 
     let webview = builder.build(&window).expect("failed to build webview");
 
@@ -510,13 +679,21 @@ fn main() {
     // If opened with CLI arg, setup watcher immediately
     if file_path_for_event.lock().unwrap().is_some() {
         let proxy_init = proxy.clone();
+        let last_self_write_init = Arc::clone(&last_self_write);
         let fp = file_path_for_event.lock().unwrap().clone();
         if let Some(ref path) = fp {
             if let Ok(mut watcher) =
                 notify::recommended_watcher(move |res: Result<Event, _>| {
                     if let Ok(ev) = res {
                         if matches!(ev.kind, EventKind::Modify(_) | EventKind::Create(_)) {
-                            let _ = proxy_init.send_event(UserEvent::FileChanged);
+                            let suppress = last_self_write_init
+                                .lock()
+                                .unwrap()
+                                .map(|t| t.elapsed() < Duration::from_millis(500))
+                                .unwrap_or(false);
+                            if !suppress {
+                                let _ = proxy_init.send_event(UserEvent::FileChanged);
+                            }
                         }
                     }
                 })
@@ -534,27 +711,12 @@ fn main() {
             TaoEvent::UserEvent(UserEvent::FileChanged) => {
                 let fp = file_path_for_event.lock().unwrap().clone();
                 if let Some(ref path) = fp {
-                    if let Ok(content) = fs::read_to_string(path) {
-                        let html_body = md_to_html(&content);
-                        let page = build_page(&html_body);
+                    if let Ok(raw) = fs::read_to_string(path) {
+                        let html = md_to_html(&raw);
                         let js = format!(
-                            r#"(function(){{
-                                var s = document.documentElement.scrollTop || document.body.scrollTop;
-                                document.documentElement.innerHTML = '{}';
-                                requestAnimationFrame(function(){{
-                                    document.documentElement.scrollTop = s;
-                                    document.body.scrollTop = s;
-                                    var idle = window.requestIdleCallback || function(fn){{ return setTimeout(fn, 0); }};
-                                    idle(function(){{
-                                        if (typeof hljs === 'undefined') {{
-                                            var el = document.getElementById('hljs-src');
-                                            if (el) (new Function(el.textContent))();
-                                        }}
-                                        if (typeof hljs !== 'undefined') hljs.highlightAll();
-                                    }});
-                                }});
-                            }})()"#,
-                            escape_js(&page)
+                            "if(window.__setContent)window.__setContent('{}', '{}');",
+                            escape_js(&html),
+                            escape_js(&raw)
                         );
                         let _ = webview.evaluate_script(&js);
 
@@ -569,6 +731,7 @@ fn main() {
                     let mut w = watcher_for_event.lock().unwrap();
                     *w = None;
                     let proxy_clone = proxy.clone();
+                    let last_self_write_cb = Arc::clone(&last_self_write);
                     if let Ok(mut new_watcher) =
                         notify::recommended_watcher(move |res: Result<Event, _>| {
                             if let Ok(ev) = res {
@@ -576,7 +739,14 @@ fn main() {
                                     ev.kind,
                                     EventKind::Modify(_) | EventKind::Create(_)
                                 ) {
-                                    let _ = proxy_clone.send_event(UserEvent::FileChanged);
+                                    let suppress = last_self_write_cb
+                                        .lock()
+                                        .unwrap()
+                                        .map(|t| t.elapsed() < Duration::from_millis(500))
+                                        .unwrap_or(false);
+                                    if !suppress {
+                                        let _ = proxy_clone.send_event(UserEvent::FileChanged);
+                                    }
                                 }
                             }
                         })
@@ -585,6 +755,29 @@ fn main() {
                         *w = Some(new_watcher);
                     }
                 }
+            }
+            TaoEvent::UserEvent(UserEvent::FileSaved) => {
+                let fp = file_path_for_event.lock().unwrap().clone();
+                if let Some(ref path) = fp {
+                    if let Ok(raw) = fs::read_to_string(path) {
+                        let html = md_to_html(&raw);
+                        let js = format!(
+                            "if(window.__setPreview)window.__setPreview('{}');",
+                            escape_js(&html)
+                        );
+                        let _ = webview.evaluate_script(&js);
+                    }
+                }
+            }
+            TaoEvent::UserEvent(UserEvent::DirtyChanged(dirty)) => {
+                let fp = file_path_for_event.lock().unwrap().clone();
+                let name = fp
+                    .as_ref()
+                    .and_then(|p| p.file_name())
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "MD Preview".to_string());
+                let prefix = if dirty { "• " } else { "" };
+                window.set_title(&format!("{}{} — MD Preview", prefix, name));
             }
             // macOS: double-click .md file in Finder opens the app with this event
             TaoEvent::Opened { urls } => {
