@@ -285,19 +285,20 @@ body.empty .toolbar {{ display: none !important; }}
   .toolbar button:hover {{ color: #fff; background: rgba(55,55,55,1); }}
 }}
 
-/* Source editor textarea */
+/* Source editor textarea — height is auto-grown by JS to match content,
+   so the page (html) owns the only vertical scrollbar. */
 #editor {{
   display: none;
   width: 100%;
-  min-height: calc(100vh - 48px);
   box-sizing: border-box;
   border: none; outline: none; resize: none;
+  overflow: hidden;
   font: 14px/1.6 "SF Mono","Menlo","Consolas",monospace;
   background: transparent; color: inherit;
   padding: 0;
 }}
 body.editing #preview {{ display: none; }}
-body.editing #editor {{ display: block; padding: 16px 24px; min-height: 100vh; }}
+body.editing #editor {{ display: block; padding: 16px 24px; }}
 body.editing #app {{ max-width: none; padding: 0; }}
 body.editing #btn-print {{ display: none; }}
 
@@ -341,11 +342,20 @@ body.editing #btn-print {{ display: none; }}
     window.ipc.postMessage('save:' + ta.value);
     setDirty(false);
   }}
+  // Grow textarea height to its content so the page (html) owns the sole
+  // scrollbar; avoids the double-scrollbar you see if textarea keeps its
+  // own internal scroll.
+  function autoResize() {{
+    ta.style.height = '0px';
+    var h = Math.max(ta.scrollHeight, window.innerHeight);
+    ta.style.height = h + 'px';
+  }}
   function enterEdit() {{
     document.body.classList.add('editing');
     btnToggle.innerHTML = ICON_VIEW;
     btnToggle.title = L_VIEW;
     btnToggle.setAttribute('aria-label', L_VIEW);
+    autoResize();
     ta.focus();
   }}
   function leaveEdit() {{
@@ -363,7 +373,8 @@ body.editing #btn-print {{ display: none; }}
     if (inEdit()) leaveEdit();
     setTimeout(function(){{ window.print(); }}, 0);
   }});
-  ta.addEventListener('input', function() {{ setDirty(true); }});
+  ta.addEventListener('input', function() {{ setDirty(true); autoResize(); }});
+  window.addEventListener('resize', function() {{ if (inEdit()) autoResize(); }});
 
   document.addEventListener('keydown', function(e) {{
     if ((e.metaKey || e.ctrlKey) && (e.key === 'o' || e.key === 'O')) {{
@@ -397,6 +408,7 @@ body.editing #btn-print {{ display: none; }}
     if (!inEdit() || !dirty) {{
       ta.value = rawMd;
       setDirty(false);
+      if (inEdit()) autoResize();
     }}
   }};
 

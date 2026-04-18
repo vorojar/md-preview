@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.9
+
+- 修复编辑模式下的"双滚动条"：textarea 原生的内部滚动条与页面滚动条叠加。现在 textarea 关闭内部滚动（`overflow: hidden`），用 JS 让其高度跟随 `scrollHeight` 自增长，所有滚动交给页面 html，单一滚动条；副作用：编辑时滚轮再也不会"在 textarea 内滚到底后卡一下才传递给页面"
+
 ## 0.3.8
 
 - 工具栏按钮在编辑/预览模式间的位置漂移修复：`html { overflow-y: scroll; scrollbar-gutter: stable; }` 让滚动条空间永久预留，两种状态下 viewport 宽度一致，`position: fixed; right` 的定位不再因滚动条出现/消失而偏移
