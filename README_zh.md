@@ -8,7 +8,7 @@
 
 用 **Rust** 和系统 **WebView** 写的跨平台 Markdown 预览工具。不打包浏览器、没有沉重运行时 —— 单文件约 1MB，把 `.md` 文件渲染得漂漂亮亮。
 
-![MD Preview Welcome Screen](https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/welcome.png)
+![MD Preview](https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/hero.png)
 
 ## 为什么用 MD Preview？
 
