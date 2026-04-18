@@ -424,7 +424,11 @@ body.editing #btn-print {{ display: none; }}
   // Defer hljs parse + initial highlight to idle time.
   var run = function(){{
     var src = document.getElementById('hljs-src').textContent;
-    (new Function(src))();
+    // hljs bundle exports via top-level `var hljs = IIFE()` + CommonJS only;
+    // inside `new Function(src)` the `var hljs` is a function-scope local
+    // and never reaches window. Append an explicit window assignment so
+    // downstream code (__setPreview, etc.) can see it.
+    (new Function(src + ';try{{window.hljs=hljs;}}catch(e){{}}'))();
     if (typeof hljs !== 'undefined') hljs.highlightAll();
   }};
   (window.requestIdleCallback || function(fn){{ return setTimeout(fn, 0); }})(run);

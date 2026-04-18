@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.11
+
+- 修复 v0.3.3 引入的语法高亮失效：hljs bundle 的 export 模式是 `var hljs = IIFE()` + CommonJS，没有浏览器 UMD 降级。我们用 `new Function(src)()` 在 idle 时延迟执行，导致 `var hljs` 变成函数作用域局部变量，永远不会挂到 `window.hljs`，`hljs.highlightAll()` 因为 `typeof hljs !== 'undefined'` 守护直接跳过。现在在 eval 的源码后追加 `;window.hljs=hljs;` 显式暴露到全局，代码高亮恢复正常。
+
 ## 0.3.10
 
 - 修复 macOS 下打印按钮无反应：WKWebView 不实现 `window.print()`，之前点击是 no-op。现在打印按钮和 `Cmd/Ctrl+P` 都走 IPC 交给 Rust，调用 wry 的 `WebView::print()` 走各平台原生打印对话框（macOS NSPrintOperation / Windows WebView2 ShowPrintUI / Linux WebKitGTK print operation）
