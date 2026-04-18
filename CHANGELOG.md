@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.12
+
+- 新增 Pascal / Delphi 代码高亮支持（hljs 的 "Delphi" 语法，别名含 `pascal` / `pas` / `dpr` / `dfm`）。highlight.js 官方 common bundle 只含 36 种主流语言，Delphi 不在其中；现在把 `delphi.min.js`（2.2KB）单独附加到 hljs 源码末尾，随 hljs 一起在 idle 时加载注册，不阻塞首屏
+- 为以后追加其它语言留了 `HLJS_EXTRA_LANGS` 合并点，按需新增 `.min.js` 子包即可
+
 ## 0.3.11
 
 - 修复 v0.3.3 引入的语法高亮失效：hljs bundle 的 export 模式是 `var hljs = IIFE()` + CommonJS，没有浏览器 UMD 降级。我们用 `new Function(src)()` 在 idle 时延迟执行，导致 `var hljs` 变成函数作用域局部变量，永远不会挂到 `window.hljs`，`hljs.highlightAll()` 因为 `typeof hljs !== 'undefined'` 守护直接跳过。现在在 eval 的源码后追加 `;window.hljs=hljs;` 显式暴露到全局，代码高亮恢复正常。

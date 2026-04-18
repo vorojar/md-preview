@@ -193,6 +193,13 @@ fn md_to_html(md: &str) -> String {
 const HLJS_JS: &str = include_str!("../assets/hljs/highlight.min.js");
 const HLJS_LIGHT: &str = include_str!("../assets/hljs/github.min.css");
 const HLJS_DARK: &str = include_str!("../assets/hljs/github-dark.min.css");
+// Extra language pack(s) not in the `common` bundle. Each file
+// ends with `hljs.registerLanguage(...)` and only works if evaluated
+// in the same scope as the main bundle — we concat them into hljs-src.
+const HLJS_EXTRA_LANGS: &str = concat!(
+    // Delphi / Pascal (aliases: dpr, dfm, pas, pascal) — user requested
+    include_str!("../assets/hljs/delphi.min.js"),
+);
 
 fn html_escape_ta(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;")
@@ -317,7 +324,8 @@ body.editing #btn-print {{ display: none; }}
   <div id="preview">{preview_html}</div>
   <textarea id="editor" spellcheck="false">{raw_md_escaped}</textarea>
 </div>
-<script id="hljs-src" type="text/x-hljs">{hljs_js}</script>
+<script id="hljs-src" type="text/x-hljs">{hljs_js}
+;{hljs_extra_langs}</script>
 <script>
 (function(){{
   var ICON_EDIT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>';
@@ -438,6 +446,7 @@ body.editing #btn-print {{ display: none; }}
         css_light = HLJS_LIGHT,
         css_dark = HLJS_DARK,
         hljs_js = HLJS_JS,
+        hljs_extra_langs = HLJS_EXTRA_LANGS,
         preview_html = preview_html,
         raw_md_escaped = html_escape_ta(raw_md),
         btn_edit = s.btn_edit,
