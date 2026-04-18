@@ -75,16 +75,22 @@ echo "[4/5] uploading signed dmg to $TAG (replacing unsigned)..."
 cp "$SIGNED" "$WORK/$ASSET"
 gh release upload "$TAG" "$WORK/$ASSET" -R "$REPO" --clobber
 
-echo "[5/5] deploying stapled .app locally..."
+echo "[5/5] deploying stapled dmg + .app locally..."
+REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
+mkdir -p "$REPO_ROOT/target"
+
+# Keep a copy of the signed dmg in target/ so it's visible in the repo checkout.
+LOCAL_DMG="$REPO_ROOT/target/$ASSET"
+cp "$SIGNED" "$LOCAL_DMG"
+echo "    saved $LOCAL_DMG"
+
 MOUNT=$(mktemp -d)/mnt
 mkdir -p "$MOUNT"
 hdiutil attach "$SIGNED" -nobrowse -mountpoint "$MOUNT" >/dev/null
 
-REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 TARGET_APP="$REPO_ROOT/target/MD Preview.app"
 if [ -d "$MOUNT/MD Preview.app" ]; then
   rm -rf "$TARGET_APP"
-  mkdir -p "$REPO_ROOT/target"
   ditto "$MOUNT/MD Preview.app" "$TARGET_APP"
   echo "    replaced $TARGET_APP"
 fi
