@@ -24,10 +24,12 @@ A blazing-fast, cross-platform Markdown preview tool built with **Rust** and sys
 - **Drag & drop** — drop any `.md` file onto the window
 - **CLI support** — `md-preview README.md` opens directly
 - **Live reload** — edits refresh automatically via file watcher
-- **Syntax highlighting** — 40+ languages, powered by highlight.js (fully offline)
+- **Inline edit** — hover-reveal toolbar in the top-right toggles between preview and source edit; `Cmd/Ctrl+E` to flip, `Cmd/Ctrl+S` to save. Stays out of your way when you only want to read.
+- **Print** — `Cmd/Ctrl+P` or the print button; toolbar and editor are stripped from the printed page automatically
+- **Syntax highlighting** — 40+ languages, powered by highlight.js (fully offline, deferred past first paint)
 - **Dark mode** — auto-follows system theme (macOS / Windows / Linux)
 - **GFM support** — tables, task lists, strikethrough, heading anchors
-- **Keyboard shortcuts** — `Cmd/Ctrl+O` to open files
+- **Remembers window** — last position and size restored on next launch; new windows center on the primary monitor
 
 ## Install
 
@@ -66,6 +68,10 @@ md-preview
 | Shortcut | Action |
 |---|---|
 | `Cmd/Ctrl + O` | Open file dialog |
+| `Cmd/Ctrl + E` | Toggle preview / source edit |
+| `Cmd/Ctrl + S` | Save (in edit mode) |
+| `Cmd/Ctrl + P` | Print |
+| `Esc` | Leave edit mode (auto-saves) |
 | Drag & Drop | Open `.md` / `.txt` file |
 
 ## Tech Stack
