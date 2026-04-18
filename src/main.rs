@@ -25,6 +25,7 @@ enum UserEvent {
     FileSaved,   // our own save: refresh preview only, leave textarea cursor alone
     DirtyChanged(bool),
     Print, // route print through wry's native API (WKWebView ignores window.print())
+    Ready,     // first paint landed: inject hljs now; if bench mode, also exit
 }
 
 #[derive(Copy, Clone)]
@@ -324,8 +325,6 @@ body.editing #btn-print {{ display: none; }}
   <div id="preview">{preview_html}</div>
   <textarea id="editor" spellcheck="false">{raw_md_escaped}</textarea>
 </div>
-<script id="hljs-src" type="text/x-hljs">{hljs_js}
-;{hljs_extra_langs}</script>
 <script>
 (function(){{
   var ICON_EDIT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>';
@@ -430,23 +429,23 @@ body.editing #btn-print {{ display: none; }}
   }};
 
   // Defer hljs parse + initial highlight to idle time.
-  var run = function(){{
-    var src = document.getElementById('hljs-src').textContent;
-    // hljs bundle exports via top-level `var hljs = IIFE()` + CommonJS only;
-    // inside `new Function(src)` the `var hljs` is a function-scope local
-    // and never reaches window. Append an explicit window assignment so
-    // downstream code (__setPreview, etc.) can see it.
-    (new Function(src + ';try{{window.hljs=hljs;}}catch(e){{}}'))();
-    if (typeof hljs !== 'undefined') hljs.highlightAll();
-  }};
-  (window.requestIdleCallback || function(fn){{ return setTimeout(fn, 0); }})(run);
+  // hljs itself is NOT inlined in this page — Rust injects it via
+  // evaluate_script once we tell it we're painted. Until that injection
+  // runs, typeof hljs === 'undefined' and highlightAll is skipped; once
+  // it lands, hljs.highlightAll() gets called by the injected bootstrap
+  // and __setPreview.
+
+  // Signal Rust after first paint (triggers hljs inject; bench mode exits).
+  requestAnimationFrame(function() {{
+    requestAnimationFrame(function() {{
+      if (window.ipc) window.ipc.postMessage('ready');
+    }});
+  }});
 }})();
 </script>
 </body></html>"#,
         css_light = HLJS_LIGHT,
         css_dark = HLJS_DARK,
-        hljs_js = HLJS_JS,
-        hljs_extra_langs = HLJS_EXTRA_LANGS,
         preview_html = preview_html,
         raw_md_escaped = html_escape_ta(raw_md),
         btn_edit = s.btn_edit,
@@ -569,9 +568,22 @@ fn register_as_default(_lang: Lang) {
 fn register_as_default(_lang: Lang) {}
 
 fn main() {
+    // Bench instrumentation: MD_PREVIEW_BENCH=1 makes the app print
+    // cold-start timings to stderr and exit as soon as the first paint
+    // lands. Costs nothing outside bench mode.
+    let bench = std::env::var("MD_PREVIEW_BENCH").is_ok();
+    let t0 = Instant::now();
+    let bench_log = |label: &str| {
+        if bench {
+            eprintln!("[bench] +{}ms {}", t0.elapsed().as_millis(), label);
+        }
+    };
+    bench_log("main_start");
+
     let lang = detect_lang();
     let strings = Strings::for_lang(lang);
     register_as_default(lang);
+    bench_log("after_register");
 
     // CLI: md-preview [file.md]
     let initial_file: Option<PathBuf> = std::env::args().nth(1).map(PathBuf::from).and_then(|p| {
@@ -609,6 +621,7 @@ fn main() {
     let window = window_builder
         .build(&event_loop)
         .expect("failed to build window");
+    bench_log("window_built");
 
     let initial_page = match &initial_file {
         Some(path) => load_and_render(path, &strings).unwrap_or_else(|| {
@@ -686,6 +699,8 @@ fn main() {
                 let _ = proxy_for_ipc.send_event(UserEvent::DirtyChanged(false));
             } else if body == "print" {
                 let _ = proxy_for_ipc.send_event(UserEvent::Print);
+            } else if body == "ready" {
+                let _ = proxy_for_ipc.send_event(UserEvent::Ready);
             } else if let Some(content) = body.strip_prefix("save:") {
                 let fp = file_path_for_ipc.lock().unwrap().clone();
                 if let Some(path) = fp {
@@ -719,6 +734,17 @@ fn main() {
         ;
 
     let webview = builder.build(&window).expect("failed to build webview");
+    bench_log("webview_built");
+
+    // hljs + extra language packs aren't part of first-paint HTML anymore.
+    // We push them in via evaluate_script the moment the webview tells us
+    // it's painted (IPC 'ready'). Keeps ~125KB out of the HTML-parse critical
+    // path so the app window shows content faster on cold start.
+    let hljs_bootstrap = format!(
+        "(function(){{{hljs_js};{hljs_extra};try{{window.hljs=hljs;}}catch(e){{}}if(typeof hljs!=='undefined'&&hljs.highlightAll){{hljs.highlightAll();}}}})();",
+        hljs_js = HLJS_JS,
+        hljs_extra = HLJS_EXTRA_LANGS,
+    );
 
     // File watcher state
     let watcher_holder: Arc<Mutex<Option<notify::RecommendedWatcher>>> =
@@ -831,6 +857,17 @@ fn main() {
             }
             TaoEvent::UserEvent(UserEvent::Print) => {
                 let _ = webview.print();
+            }
+            TaoEvent::UserEvent(UserEvent::Ready) => {
+                // First paint is on the screen; now push hljs into the page
+                // (kept out of first-paint HTML to keep it slim). Always do
+                // this, even in bench mode, so subsequent panes would still
+                // highlight — bench just exits right after measuring.
+                let _ = webview.evaluate_script(&hljs_bootstrap);
+                if bench {
+                    eprintln!("[bench] +{}ms ready", t0.elapsed().as_millis());
+                    *control_flow = ControlFlow::Exit;
+                }
             }
             // macOS: double-click .md file in Finder opens the app with this event
             TaoEvent::Opened { urls } => {

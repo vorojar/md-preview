@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.0.0
+
+**首次正式版本**。以 0.3.x 系列的所有功能为基础，本版专注冷启动性能。
+
+### 冷启动提速 24%
+
+首屏 HTML 大幅瘦身：121KB 的 highlight.js 不再嵌入首屏 `<script>` 标签，从 HTML 解析路径移除；改为页面首次 paint 后由 Rust 通过 `evaluate_script` 推入。Markdown 内容是首屏唯一 JS 体积。
+
+同 630 行 Markdown 测试文件（70 个 Python 代码块），macOS Apple Silicon 上测 5 次均值：
+
+| 阶段 | 0.3.12 基线 | 1.0.0 | 降幅 |
+|------|-------------|-------|------|
+| main → window 创建 | 130 ms | 92 ms | -29% |
+| → webview 实例化 | 230 ms | 172 ms | -25% |
+| → **首帧可见** | **448 ms** | **340 ms** | **-24%（快 108 ms）** |
+
+用户感知：窗口弹出即可见 Markdown 内容；代码着色在首帧之后约 50ms 补上（肉眼几乎感觉不到）。
+
+### 附带改进
+
+- 新增 `MD_PREVIEW_BENCH=1` 环境变量：启用后 stderr 输出冷启动各阶段耗时，并在首帧 paint 后自动退出，便于可复现地度量启动性能
+- 版本号对齐为 1.0.0（Cargo.toml 和 macOS `CFBundleVersion` / `CFBundleShortVersionString` 同步，此前一直停在 0.1.0）
+
+### 自 0.3.12 以来的所有功能（汇总）
+
+- macOS / Windows / Linux 原生 WebView，无 Electron，二进制 ~1MB
+- Markdown 渲染（pulldown-cmark，GFM：表格、任务列表、删除线、标题锚点）
+- 40+ 语言代码高亮（含 Pascal / Delphi），延迟加载不阻塞首屏
+- 暗色 / 亮色模式跟随系统
+- 内置源码编辑（`Cmd/Ctrl+E` 切换预览/编辑，`Cmd/Ctrl+S` 保存，工具栏按钮 hover 时浮现）
+- 原生打印对话框（`Cmd/Ctrl+P`，跨平台一致）
+- md 外链跳系统默认浏览器
+- Windows 文件关联（右键"打开方式"）
+- 窗口位置/大小退出时持久化，下次启动恢复；首次启动在主显示器居中
+- i18n（简体中文 / English 跟随系统语言）
+- Windows 上 WebView2 缓存迁移到 `%LOCALAPPDATA%`，不再污染 exe 同目录
+- macOS dmg 和内部 .app 均签名 + 公证 + staple，Gatekeeper 无任何警告
+- `git push origin vX.Y.Z` 自动触发签名 + 公证 + 替换 Release asset（`hooks/pre-push` + `release-sign.sh`）
+
 ## 0.3.12
 
 - 新增 Pascal / Delphi 代码高亮支持（hljs 的 "Delphi" 语法，别名含 `pascal` / `pas` / `dpr` / `dfm`）。highlight.js 官方 common bundle 只含 36 种主流语言，Delphi 不在其中；现在把 `delphi.min.js`（2.2KB）单独附加到 hljs 源码末尾，随 hljs 一起在 idle 时加载注册，不阻塞首屏
