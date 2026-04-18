@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# pre-push hook: when pushing a tag matching v*.*.*, launch release-sign.sh
+# in the background so that after Actions finishes publishing the unsigned
+# dmg, it gets signed + notarized + stapled + the release asset replaced,
+# and the stapled .app/dmg dropped into target/.
+#
+# Enable once per clone:   git config core.hooksPath hooks
+#
+# Live log: tail -f target/.release-sign.log
+# Final state: macOS notification fires when signing succeeds or fails.
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+TAG_RE='^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$'
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [[ "$remote_ref" =~ $TAG_RE ]]; then
+    TAG="${remote_ref##refs/tags/}"
+    LOG="$REPO_ROOT/target/.release-sign.log"
+    mkdir -p "$REPO_ROOT/target"
+    echo "[pre-push] $TAG detected — release-sign.sh queued in background"
+    echo "[pre-push] tail -f $LOG   to watch progress (~5-7 min)"
+    nohup "$REPO_ROOT/release-sign.sh" "$TAG" \
+      </dev/null >>"$LOG" 2>&1 &
+    disown
+    break
+  fi
+done
+
+exit 0

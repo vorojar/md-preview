@@ -26,6 +26,14 @@ if [ -z "$TAG" ]; then
   exit 1
 fi
 
+notify_if_failed() {
+  local rc=$?
+  if [ "$rc" -ne 0 ] && command -v osascript >/dev/null 2>&1; then
+    osascript -e "display notification \"${TAG:-?} signing FAILED (rc=$rc). See target/.release-sign.log\" with title \"md-preview signing FAILED\"" >/dev/null 2>&1 || true
+  fi
+}
+trap notify_if_failed EXIT
+
 REPO="vorojar/md-preview"
 ASSET="MD-Preview-macOS-universal.dmg"
 SIGN_SCRIPT="$HOME/.claude/skills/remote-mac-sign/sign_remote.sh"
@@ -109,3 +117,8 @@ hdiutil detach "$MOUNT" >/dev/null
 echo ""
 echo "DONE. $TAG: dmg and inner .app both signed + notarized + stapled."
 echo "Release: https://github.com/$REPO/releases/tag/$TAG"
+
+# macOS notification (for background runs triggered by the pre-push hook).
+if command -v osascript >/dev/null 2>&1; then
+  osascript -e "display notification \"$TAG dmg + .app signed, notarized, stapled.\" with title \"md-preview release signed\"" >/dev/null 2>&1 || true
+fi
