@@ -46,6 +46,11 @@ fi
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
+# Remove any stale sentinel from a previous run of the same tag, so a
+# waiter doesn't see an old DONE and think this one finished instantly.
+REPO_ROOT_PRE="$(cd "$(dirname "$0")" && pwd)"
+rm -f "$REPO_ROOT_PRE/target/.release-sign.done.$TAG" 2>/dev/null || true
+
 echo "[1/5] waiting for $TAG Release to expose $ASSET (poll 15s, up to 15min)..."
 for i in $(seq 1 60); do
   if gh release view "$TAG" -R "$REPO" --json assets -q \
@@ -117,6 +122,15 @@ hdiutil detach "$MOUNT" >/dev/null
 echo ""
 echo "DONE. $TAG: dmg and inner .app both signed + notarized + stapled."
 echo "Release: https://github.com/$REPO/releases/tag/$TAG"
+
+# Write a sentinel file with the tag in its name. Anyone waiting on this
+# pipeline (or me in an interactive session) polls for file existence — no
+# regex against log timestamps, no mv of a live log. Removed at the top of
+# the next run so stale sentinels don't trigger false positives.
+REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
+SENTINEL="$REPO_ROOT/target/.release-sign.done.$TAG"
+touch "$SENTINEL"
+echo "    sentinel: $SENTINEL"
 
 # macOS notification (for background runs triggered by the pre-push hook).
 if command -v osascript >/dev/null 2>&1; then
