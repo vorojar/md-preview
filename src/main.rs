@@ -24,6 +24,7 @@ enum UserEvent {
     FileChanged, // external change: refresh preview AND textarea
     FileSaved,   // our own save: refresh preview only, leave textarea cursor alone
     DirtyChanged(bool),
+    Print, // route print through wry's native API (WKWebView ignores window.print())
 }
 
 #[derive(Copy, Clone)]
@@ -371,7 +372,9 @@ body.editing #btn-print {{ display: none; }}
   }});
   btnPrint.addEventListener('click', function() {{
     if (inEdit()) leaveEdit();
-    setTimeout(function(){{ window.print(); }}, 0);
+    // Route through Rust: WKWebView ignores window.print(); wry's
+    // WebView::print() calls the right native API on each platform.
+    setTimeout(function(){{ window.ipc.postMessage('print'); }}, 0);
   }});
   ta.addEventListener('input', function() {{ setDirty(true); autoResize(); }});
   window.addEventListener('resize', function() {{ if (inEdit()) autoResize(); }});
@@ -389,6 +392,12 @@ body.editing #btn-print {{ display: none; }}
     }}
     if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {{
       if (inEdit()) {{ e.preventDefault(); save(); }}
+      return;
+    }}
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'p' || e.key === 'P')) {{
+      e.preventDefault();
+      if (inEdit()) leaveEdit();
+      setTimeout(function(){{ window.ipc.postMessage('print'); }}, 0);
       return;
     }}
     if (e.key === 'Escape' && inEdit()) {{ leaveEdit(); }}
@@ -662,6 +671,8 @@ fn main() {
                 let _ = proxy_for_ipc.send_event(UserEvent::DirtyChanged(true));
             } else if body == "dirty:0" {
                 let _ = proxy_for_ipc.send_event(UserEvent::DirtyChanged(false));
+            } else if body == "print" {
+                let _ = proxy_for_ipc.send_event(UserEvent::Print);
             } else if let Some(content) = body.strip_prefix("save:") {
                 let fp = file_path_for_ipc.lock().unwrap().clone();
                 if let Some(path) = fp {
@@ -804,6 +815,9 @@ fn main() {
                     .unwrap_or_else(|| "MD Preview".to_string());
                 let prefix = if dirty { "• " } else { "" };
                 window.set_title(&format!("{}{} — MD Preview", prefix, name));
+            }
+            TaoEvent::UserEvent(UserEvent::Print) => {
+                let _ = webview.print();
             }
             // macOS: double-click .md file in Finder opens the app with this event
             TaoEvent::Opened { urls } => {

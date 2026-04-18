@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.10
+
+- 修复 macOS 下打印按钮无反应：WKWebView 不实现 `window.print()`，之前点击是 no-op。现在打印按钮和 `Cmd/Ctrl+P` 都走 IPC 交给 Rust，调用 wry 的 `WebView::print()` 走各平台原生打印对话框（macOS NSPrintOperation / Windows WebView2 ShowPrintUI / Linux WebKitGTK print operation）
+
 ## 0.3.9
 
 - 修复编辑模式下的"双滚动条"：textarea 原生的内部滚动条与页面滚动条叠加。现在 textarea 关闭内部滚动（`overflow: hidden`），用 JS 让其高度跟随 `scrollHeight` 自增长，所有滚动交给页面 html，单一滚动条；副作用：编辑时滚轮再也不会"在 textarea 内滚到底后卡一下才传递给页面"
