@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.8
+
+- 工具栏按钮在编辑/预览模式间的位置漂移修复：`html { overflow-y: scroll; scrollbar-gutter: stable; }` 让滚动条空间永久预留，两种状态下 viewport 宽度一致，`position: fixed; right` 的定位不再因滚动条出现/消失而偏移
+- 编辑模式下隐藏打印按钮：打印属于"读完"场景，与编辑心智冲突；Cmd/Ctrl+P 系统快捷键不受影响
+
 ## 0.3.7
 
 - 工具栏改为 hover 时浮现：鼠标离开窗口自动淡出，不干扰阅读

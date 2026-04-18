@@ -215,6 +215,9 @@ fn build_page(preview_html: &str, raw_md: &str, s: &Strings, empty: bool) -> Str
 </script>
 <style>
 :root {{ color-scheme: light dark; }}
+/* Reserve scrollbar space permanently so the fixed toolbar doesn't shift
+   between modes (one with scrollbar, one without). */
+html {{ overflow-y: scroll; scrollbar-gutter: stable; }}
 body {{
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   margin: 0; padding: 0;
@@ -296,6 +299,7 @@ body.empty .toolbar {{ display: none !important; }}
 body.editing #preview {{ display: none; }}
 body.editing #editor {{ display: block; padding: 16px 24px; min-height: 100vh; }}
 body.editing #app {{ max-width: none; padding: 0; }}
+body.editing #btn-print {{ display: none; }}
 
 @media print {{
   .toolbar, #editor {{ display: none !important; }}
