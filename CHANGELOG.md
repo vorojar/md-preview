@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1
+
+- 修复 Windows 长文档编辑时输入可能跳回顶部的问题：编辑区自动增高时保留页面滚动位置
+- 修复 Linux Wayland 下 WebView 创建可能触发 `UnsupportedWindowHandle` 的问题：Linux 改走 wry 推荐的 GTK container 路径
+
 ## 1.0.0
 
 **首次正式版本**。以 0.3.x 系列的所有功能为基础，本版专注冷启动性能。

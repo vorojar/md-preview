@@ -354,9 +354,12 @@ body.editing #btn-print {{ display: none; }}
   // scrollbar; avoids the double-scrollbar you see if textarea keeps its
   // own internal scroll.
   function autoResize() {{
-    ta.style.height = '0px';
+    var x = window.scrollX || document.documentElement.scrollLeft || 0;
+    var y = window.scrollY || document.documentElement.scrollTop || 0;
+    ta.style.height = 'auto';
     var h = Math.max(ta.scrollHeight, window.innerHeight);
     ta.style.height = h + 'px';
+    window.scrollTo(x, y);
   }}
   function enterEdit() {{
     document.body.classList.add('editing');
@@ -733,6 +736,17 @@ fn main() {
         })
         ;
 
+    #[cfg(target_os = "linux")]
+    let webview = {
+        use tao::platform::unix::WindowExtUnix;
+        use wry::WebViewBuilderExtUnix;
+
+        let vbox = window
+            .default_vbox()
+            .expect("failed to get default GTK container");
+        builder.build_gtk(vbox).expect("failed to build webview")
+    };
+    #[cfg(not(target_os = "linux"))]
     let webview = builder.build(&window).expect("failed to build webview");
     bench_log("webview_built");
 
