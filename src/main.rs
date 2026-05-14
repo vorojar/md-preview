@@ -6,7 +6,7 @@
 use notify::{Event, EventKind, RecursiveMode, Watcher};
 use pulldown_cmark::{Options, Parser, html};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tao::dpi::{LogicalPosition, LogicalSize};
@@ -206,10 +206,50 @@ fn html_escape_ta(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;")
 }
 
-fn build_page(preview_html: &str, raw_md: &str, s: &Strings, empty: bool) -> String {
+fn html_escape_attr(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+}
+
+fn percent_encode_file_path(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for &b in s.as_bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'/' | b':' | b'-' | b'_' | b'.'
+            | b'~' => out.push(b as char),
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
+fn base_href_for_file(path: &Path) -> Option<String> {
+    let dir = path.parent()?;
+    let mut path = dir.to_string_lossy().replace('\\', "/");
+    if cfg!(windows) && !path.starts_with('/') {
+        path.insert(0, '/');
+    }
+    if !path.ends_with('/') {
+        path.push('/');
+    }
+    Some(format!("file://{}", percent_encode_file_path(&path)))
+}
+
+fn build_page(
+    preview_html: &str,
+    raw_md: &str,
+    base_href: Option<&str>,
+    s: &Strings,
+    empty: bool,
+) -> String {
     let body_class = if empty { "empty" } else { "" };
+    let base_tag = base_href
+        .map(|href| format!(r#"<base id="base-href" href="{}">"#, html_escape_attr(href)))
+        .unwrap_or_else(|| r#"<base id="base-href">"#.to_string());
     format!(
         r#"<!DOCTYPE html><html><head><meta charset="utf-8">
+{base_tag}
 <style id="hljs-light">{css_light}</style>
 <style id="hljs-dark" media="not all">{css_dark}</style>
 <script>
@@ -421,8 +461,19 @@ body.editing #btn-print {{ display: none; }}
       if (typeof hljs !== 'undefined') hljs.highlightAll();
     }});
   }};
-  window.__setContent = function(previewHtml, rawMd) {{
+  window.__setBaseHref = function(baseHref) {{
+    var base = document.getElementById('base-href');
+    if (!base) {{
+      base = document.createElement('base');
+      base.id = 'base-href';
+      document.head.insertBefore(base, document.head.firstChild);
+    }}
+    if (baseHref) base.setAttribute('href', baseHref);
+    else base.removeAttribute('href');
+  }};
+  window.__setContent = function(previewHtml, rawMd, baseHref) {{
     document.body.classList.remove('empty');
+    window.__setBaseHref(baseHref);
     window.__setPreview(previewHtml);
     if (!inEdit() || !dirty) {{
       ta.value = rawMd;
@@ -449,6 +500,7 @@ body.editing #btn-print {{ display: none; }}
 </body></html>"#,
         css_light = HLJS_LIGHT,
         css_dark = HLJS_DARK,
+        base_tag = base_tag,
         preview_html = preview_html,
         raw_md_escaped = html_escape_ta(raw_md),
         btn_edit = s.btn_edit,
@@ -468,7 +520,8 @@ fn escape_js(s: &str) -> String {
 fn load_and_render(path: &PathBuf, s: &Strings) -> Option<String> {
     fs::read_to_string(path).ok().map(|raw| {
         let html_body = md_to_html(&raw);
-        build_page(&html_body, &raw, s, false)
+        let base_href = base_href_for_file(path);
+        build_page(&html_body, &raw, base_href.as_deref(), s, false)
     })
 }
 
@@ -634,6 +687,7 @@ fn main() {
                     strings.cannot_read
                 ),
                 "",
+                None,
                 &strings,
                 true,
             )
@@ -644,6 +698,7 @@ fn main() {
                 strings.drop_hint
             ),
             "",
+            None,
             &strings,
             true,
         ),
@@ -803,10 +858,12 @@ fn main() {
                 if let Some(ref path) = fp {
                     if let Ok(raw) = fs::read_to_string(path) {
                         let html = md_to_html(&raw);
+                        let base_href = base_href_for_file(path).unwrap_or_default();
                         let js = format!(
-                            "if(window.__setContent)window.__setContent('{}', '{}');",
+                            "if(window.__setContent)window.__setContent('{}', '{}', '{}');",
                             escape_js(&html),
-                            escape_js(&raw)
+                            escape_js(&raw),
+                            escape_js(&base_href)
                         );
                         let _ = webview.evaluate_script(&js);
 

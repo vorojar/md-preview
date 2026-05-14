@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.2
+
+- 修复从文件打开 Markdown 时，相对路径图片在 Windows 等平台可能无法显示的问题：页面现在以 Markdown 文件所在目录作为 base URL
+- LaTeX/数学公式渲染暂未纳入，本版保持轻量定位，不引入 KaTeX/MathJax 运行时
+
 ## 1.0.1
 
 - 修复 Windows 长文档编辑时输入可能跳回顶部的问题：编辑区自动增高时保留页面滚动位置
