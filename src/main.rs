@@ -623,6 +623,110 @@ fn register_as_default(_lang: Lang) {
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn register_as_default(_lang: Lang) {}
 
+#[cfg(target_os = "macos")]
+fn install_macos_edit_menu() {
+    use objc2::runtime::Sel;
+    use objc2::sel;
+    use objc2::MainThreadOnly;
+    use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem};
+    use objc2_foundation::{MainThreadMarker, NSString};
+
+    let Some(mtm) = MainThreadMarker::new() else {
+        return;
+    };
+
+    fn menu(title: &str, mtm: MainThreadMarker) -> objc2::rc::Retained<NSMenu> {
+        NSMenu::initWithTitle(NSMenu::alloc(mtm), &NSString::from_str(title))
+    }
+
+    fn item(
+        title: &str,
+        action: Option<Sel>,
+        key: &str,
+        modifiers: NSEventModifierFlags,
+        mtm: MainThreadMarker,
+    ) -> objc2::rc::Retained<NSMenuItem> {
+        let item = unsafe {
+            NSMenuItem::initWithTitle_action_keyEquivalent(
+                NSMenuItem::alloc(mtm),
+                &NSString::from_str(title),
+                action,
+                &NSString::from_str(key),
+            )
+        };
+        item.setKeyEquivalentModifierMask(modifiers);
+        item
+    }
+
+    let app = NSApplication::sharedApplication(mtm);
+    let main_menu = menu("", mtm);
+
+    let app_menu = menu("MD Preview", mtm);
+    app_menu.addItem(&item(
+        "Quit MD Preview",
+        Some(sel!(terminate:)),
+        "q",
+        NSEventModifierFlags::Command,
+        mtm,
+    ));
+    let app_menu_item = item("MD Preview", None, "", NSEventModifierFlags::empty(), mtm);
+    app_menu_item.setSubmenu(Some(&app_menu));
+    main_menu.addItem(&app_menu_item);
+
+    let edit_menu = menu("Edit", mtm);
+    edit_menu.addItem(&item(
+        "Undo",
+        Some(sel!(undo:)),
+        "z",
+        NSEventModifierFlags::Command,
+        mtm,
+    ));
+    edit_menu.addItem(&item(
+        "Redo",
+        Some(sel!(redo:)),
+        "z",
+        NSEventModifierFlags::Command | NSEventModifierFlags::Shift,
+        mtm,
+    ));
+    edit_menu.addItem(&NSMenuItem::separatorItem(mtm));
+    edit_menu.addItem(&item(
+        "Cut",
+        Some(sel!(cut:)),
+        "x",
+        NSEventModifierFlags::Command,
+        mtm,
+    ));
+    edit_menu.addItem(&item(
+        "Copy",
+        Some(sel!(copy:)),
+        "c",
+        NSEventModifierFlags::Command,
+        mtm,
+    ));
+    edit_menu.addItem(&item(
+        "Paste",
+        Some(sel!(paste:)),
+        "v",
+        NSEventModifierFlags::Command,
+        mtm,
+    ));
+    edit_menu.addItem(&item(
+        "Select All",
+        Some(sel!(selectAll:)),
+        "a",
+        NSEventModifierFlags::Command,
+        mtm,
+    ));
+    let edit_menu_item = item("Edit", None, "", NSEventModifierFlags::empty(), mtm);
+    edit_menu_item.setSubmenu(Some(&edit_menu));
+    main_menu.addItem(&edit_menu_item);
+
+    app.setMainMenu(Some(&main_menu));
+}
+
+#[cfg(not(target_os = "macos"))]
+fn install_macos_edit_menu() {}
+
 fn main() {
     // Bench instrumentation: MD_PREVIEW_BENCH=1 makes the app print
     // cold-start timings to stderr and exit as soon as the first paint
@@ -655,6 +759,7 @@ fn main() {
     });
 
     let event_loop: EventLoop<UserEvent> = EventLoopBuilder::with_user_event().build();
+    install_macos_edit_menu();
     let proxy = event_loop.create_proxy();
 
     let title = initial_file
