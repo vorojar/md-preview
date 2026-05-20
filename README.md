@@ -2,11 +2,11 @@
 
 **English · [简体中文](README_zh.md)**
 
-[![GitHub stars](https://img.shields.io/github/stars/vorojar/md-preview)](https://github.com/vorojar/md-preview/stargazers) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![Release](https://img.shields.io/github/v/release/vorojar/md-preview)](https://github.com/vorojar/md-preview/releases) [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](https://github.com/vorojar/md-preview/releases) [![Binary size](https://img.shields.io/badge/binary%20size-~1MB-green)](https://github.com/vorojar/md-preview)
+[![GitHub stars](https://img.shields.io/github/stars/vorojar/md-preview)](https://github.com/vorojar/md-preview/stargazers) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![Release](https://img.shields.io/github/v/release/vorojar/md-preview)](https://github.com/vorojar/md-preview/releases) [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](https://github.com/vorojar/md-preview/releases) [![Binary size](https://img.shields.io/badge/binary%20size-~5MB-green)](https://github.com/vorojar/md-preview)
 
-> Ultra-lightweight Markdown preview app. ~1MB binary, zero Electron, pure native.
+> Ultra-lightweight Markdown preview app. ~5MB binary, zero Electron, pure native.
 
-A blazing-fast, cross-platform Markdown preview tool built with **Rust** and system **WebView**. No bundled browser, no heavy runtimes — just a single ~1MB binary that renders your `.md` files beautifully.
+A blazing-fast, cross-platform Markdown preview tool built with **Rust** and system **WebView**. No bundled browser, no heavy runtimes — just a small native binary that renders your `.md` files beautifully.
 
 ![MD Preview](https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/hero.jpg)
 
@@ -14,7 +14,7 @@ A blazing-fast, cross-platform Markdown preview tool built with **Rust** and sys
 
 | | MD Preview | Electron-based |
 |---|---|---|
-| **Binary size** | ~1.1 MB | 150+ MB |
+| **Binary size** | ~5 MB | 150+ MB |
 | **Memory usage** | ~15 MB | 200+ MB |
 | **Startup time** | Instant | 2-5 seconds |
 | **Runtime** | System WebView | Bundled Chromium |

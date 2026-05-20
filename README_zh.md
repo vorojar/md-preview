@@ -2,11 +2,11 @@
 
 **[English](README.md) · 简体中文**
 
-[![GitHub stars](https://img.shields.io/github/stars/vorojar/md-preview)](https://github.com/vorojar/md-preview/stargazers) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![Release](https://img.shields.io/github/v/release/vorojar/md-preview)](https://github.com/vorojar/md-preview/releases) [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](https://github.com/vorojar/md-preview/releases) [![Binary size](https://img.shields.io/badge/binary%20size-~1MB-green)](https://github.com/vorojar/md-preview)
+[![GitHub stars](https://img.shields.io/github/stars/vorojar/md-preview)](https://github.com/vorojar/md-preview/stargazers) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![Release](https://img.shields.io/github/v/release/vorojar/md-preview)](https://github.com/vorojar/md-preview/releases) [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](https://github.com/vorojar/md-preview/releases) [![Binary size](https://img.shields.io/badge/binary%20size-~5MB-green)](https://github.com/vorojar/md-preview)
 
-> 极轻量的 Markdown 预览工具，约 1MB 二进制，无 Electron，纯原生实现。
+> 极轻量的 Markdown 预览工具，约 5MB 二进制，无 Electron，纯原生实现。
 
-用 **Rust** 和系统 **WebView** 写的跨平台 Markdown 预览工具。不打包浏览器、没有沉重运行时 —— 单文件约 1MB，把 `.md` 文件渲染得漂漂亮亮。
+用 **Rust** 和系统 **WebView** 写的跨平台 Markdown 预览工具。不打包浏览器、没有沉重运行时 —— 一个很小的原生二进制，把 `.md` 文件渲染得漂漂亮亮。
 
 ![MD Preview](https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/hero.jpg)
 
@@ -14,7 +14,7 @@
 
 |  | MD Preview | Electron 类 |
 |---|---|---|
-| **二进制大小** | ~1.1 MB | 150+ MB |
+| **二进制大小** | ~5 MB | 150+ MB |
 | **内存占用** | ~15 MB | 200+ MB |
 | **启动时间** | 瞬间 | 2–5 秒 |
 | **运行时** | 系统 WebView | 内置 Chromium |
