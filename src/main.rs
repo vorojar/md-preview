@@ -28,6 +28,18 @@ enum UserEvent {
     Ready,     // first paint landed: inject hljs now; if bench mode, also exit
 }
 
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+struct EnhanceFlags {
+    math: bool,
+    mermaid: bool,
+}
+
+impl EnhanceFlags {
+    fn any(self) -> bool {
+        self.math || self.mermaid
+    }
+}
+
 #[derive(Copy, Clone)]
 enum Lang {
     Zh,
@@ -201,6 +213,10 @@ const HLJS_EXTRA_LANGS: &str = concat!(
     // Delphi / Pascal (aliases: dpr, dfm, pas, pascal) — user requested
     include_str!("../assets/hljs/delphi.min.js"),
 );
+const PREVIEW_ENHANCE_JS: &str = include_str!("../assets/enhance/preview-enhance.js");
+const KATEX_JS: &str = include_str!("../assets/katex/katex.min.js");
+const KATEX_CSS: &str = include_str!("../assets/katex/katex.inline.css");
+const MERMAID_JS: &str = include_str!("../assets/mermaid/mermaid.min.js");
 
 fn html_escape_ta(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;")
@@ -226,6 +242,10 @@ fn percent_encode_file_path(s: &str) -> String {
 
 fn base_href_for_file(path: &Path) -> Option<String> {
     let dir = path.parent()?;
+    Some(file_url_for_path_dir(dir))
+}
+
+fn file_url_for_path_dir(dir: &Path) -> String {
     let mut path = dir.to_string_lossy().replace('\\', "/");
     if cfg!(windows) && !path.starts_with('/') {
         path.insert(0, '/');
@@ -233,13 +253,140 @@ fn base_href_for_file(path: &Path) -> Option<String> {
     if !path.ends_with('/') {
         path.push('/');
     }
-    Some(format!("file://{}", percent_encode_file_path(&path)))
+    format!("file://{}", percent_encode_file_path(&path))
+}
+
+fn starts_mermaid_fence(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    let rest = trimmed
+        .strip_prefix("```")
+        .or_else(|| trimmed.strip_prefix("~~~"));
+    let Some(info) = rest else {
+        return false;
+    };
+    let info = info.trim_start();
+    info == "mermaid"
+        || info
+            .strip_prefix("mermaid")
+            .and_then(|s| s.chars().next())
+            .map(|c| c.is_whitespace() || c == '{')
+            .unwrap_or(false)
+}
+
+fn has_unescaped_at(s: &str, index: usize, needle: &str) -> bool {
+    if !s[index..].starts_with(needle) {
+        return false;
+    }
+    let mut backslashes = 0;
+    for b in s[..index].bytes().rev() {
+        if b == b'\\' {
+            backslashes += 1;
+        } else {
+            break;
+        }
+    }
+    backslashes % 2 == 0
+}
+
+fn has_unescaped_pair(s: &str, open: &str, close: &str) -> bool {
+    let mut pos = 0;
+    while let Some(rel) = s[pos..].find(open) {
+        let start = pos + rel;
+        if !has_unescaped_at(s, start, open) {
+            pos = start + open.len();
+            continue;
+        }
+        let body_start = start + open.len();
+        let mut search = body_start;
+        while let Some(close_rel) = s[search..].find(close) {
+            let close_at = search + close_rel;
+            if has_unescaped_at(s, close_at, close) {
+                return true;
+            }
+            search = close_at + close.len();
+        }
+        pos = body_start;
+    }
+    false
+}
+
+fn has_inline_dollar_math(s: &str) -> bool {
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'$' || !has_unescaped_at(s, i, "$") {
+            i += 1;
+            continue;
+        }
+        if bytes.get(i + 1).copied() == Some(b'$')
+            || bytes
+                .get(i + 1)
+                .map(|b| b.is_ascii_whitespace())
+                .unwrap_or(true)
+        {
+            i += 1;
+            continue;
+        }
+        let mut j = i + 1;
+        while j < bytes.len() {
+            if bytes[j] == b'$'
+                && has_unescaped_at(s, j, "$")
+                && bytes
+                    .get(j.wrapping_sub(1))
+                    .map(|b| !b.is_ascii_whitespace())
+                    .unwrap_or(false)
+            {
+                return true;
+            }
+            j += 1;
+        }
+        i += 1;
+    }
+    false
+}
+
+fn enhance_flags_for(md: &str) -> EnhanceFlags {
+    EnhanceFlags {
+        math: has_unescaped_pair(md, "$$", "$$")
+            || has_unescaped_pair(md, "\\[", "\\]")
+            || has_unescaped_pair(md, "\\(", "\\)")
+            || has_inline_dollar_math(md),
+        mermaid: md.lines().any(starts_mermaid_fence),
+    }
+}
+
+fn build_enhancer_bootstrap(flags: EnhanceFlags, loaded: EnhanceFlags) -> Vec<String> {
+    if !flags.any() {
+        return Vec::new();
+    }
+
+    let mut scripts = Vec::new();
+    if flags.math && !loaded.math {
+        let mut js = String::from("(function(){\nif(!window.katex){\n");
+        js.push_str(KATEX_JS);
+        js.push_str("\n;try{window.katex=katex;}catch(e){}\n}\n");
+        js.push_str("if(window.__setKatexCss)window.__setKatexCss('");
+        js.push_str(&escape_js(KATEX_CSS));
+        js.push_str("');\n})();");
+        scripts.push(js);
+    }
+    if flags.mermaid && !loaded.mermaid {
+        // Mermaid's standalone bundle expects global script scope. Keep it
+        // out of the function wrapper that is safe for KaTeX/highlight.js.
+        let mut js = String::with_capacity(MERMAID_JS.len() + 80);
+        js.push_str(MERMAID_JS);
+        js.push_str("\n;try{window.mermaid=mermaid;}catch(e){}\n");
+        scripts.push(js);
+    }
+    scripts.push("if(window.__enhancePreview)window.__enhancePreview();".to_string());
+    scripts
 }
 
 fn build_page(
     preview_html: &str,
     raw_md: &str,
     base_href: Option<&str>,
+    flags: EnhanceFlags,
     s: &Strings,
     empty: bool,
 ) -> String {
@@ -295,6 +442,10 @@ body {{
 #preview table th, #preview table td {{ border: 1px solid #ddd; padding: 8px 12px; text-align: left; }}
 #preview table th {{ background: #f6f8fa; font-weight: 600; }}
 #preview img {{ max-width: 100%; }}
+#preview .katex-display {{ overflow-x: auto; overflow-y: hidden; padding: 0.15em 0; }}
+#preview .mdp-mermaid {{ margin: 1.2em 0; overflow-x: auto; text-align: center; }}
+#preview .mdp-mermaid svg {{ max-width: 100%; height: auto; }}
+#preview .mdp-mermaid-error, #preview .mdp-math-error {{ color: #b42318; }}
 #preview hr {{ border: none; border-top: 1px solid #e1e4e8; margin: 2em 0; }}
 #preview a {{ color: #0969da; text-decoration: none; }}
 #preview a:hover {{ text-decoration: underline; }}
@@ -455,10 +606,14 @@ body.editing #btn-print {{ display: none; }}
 
   // Called by Rust after a save (only preview is refreshed) or after an
   // external file change (both preview + textarea are refreshed).
-  window.__setPreview = function(previewHtml) {{
+  window.__setPreview = function(previewHtml, needsMath, needsMermaid) {{
+    if (arguments.length > 1 && window.__setFeatureFlags) {{
+      window.__setFeatureFlags(needsMath, needsMermaid);
+    }}
     document.getElementById('preview').innerHTML = previewHtml;
     (window.requestIdleCallback || function(fn){{ return setTimeout(fn, 0); }})(function() {{
       if (typeof hljs !== 'undefined') hljs.highlightAll();
+      if (window.__enhancePreview) window.__enhancePreview();
     }});
   }};
   window.__setBaseHref = function(baseHref) {{
@@ -471,10 +626,10 @@ body.editing #btn-print {{ display: none; }}
     if (baseHref) base.setAttribute('href', baseHref);
     else base.removeAttribute('href');
   }};
-  window.__setContent = function(previewHtml, rawMd, baseHref) {{
+  window.__setContent = function(previewHtml, rawMd, baseHref, needsMath, needsMermaid) {{
     document.body.classList.remove('empty');
     window.__setBaseHref(baseHref);
-    window.__setPreview(previewHtml);
+    window.__setPreview(previewHtml, needsMath, needsMermaid);
     if (!inEdit() || !dirty) {{
       ta.value = rawMd;
       setDirty(false);
@@ -496,6 +651,8 @@ body.editing #btn-print {{ display: none; }}
     }});
   }});
 }})();
+window.__mdPreviewFeatureFlags = {{ math: {needs_math}, mermaid: {needs_mermaid} }};
+{preview_enhance_js}
 </script>
 </body></html>"#,
         css_light = HLJS_LIGHT,
@@ -507,6 +664,9 @@ body.editing #btn-print {{ display: none; }}
         btn_preview = s.btn_preview,
         btn_print = s.btn_print,
         body_class = body_class,
+        needs_math = flags.math,
+        needs_mermaid = flags.mermaid,
+        preview_enhance_js = PREVIEW_ENHANCE_JS,
     )
 }
 
@@ -515,14 +675,6 @@ fn escape_js(s: &str) -> String {
         .replace('\'', "\\'")
         .replace('\n', "\\n")
         .replace('\r', "\\r")
-}
-
-fn load_and_render(path: &PathBuf, s: &Strings) -> Option<String> {
-    fs::read_to_string(path).ok().map(|raw| {
-        let html_body = md_to_html(&raw);
-        let base_href = base_href_for_file(path);
-        build_page(&html_body, &raw, base_href.as_deref(), s, false)
-    })
 }
 
 /// Decode embedded icon.ico to an RGBA tao Icon for the window chrome.
@@ -784,19 +936,36 @@ fn main() {
         .expect("failed to build window");
     bench_log("window_built");
 
+    let mut initial_flags = EnhanceFlags::default();
     let initial_page = match &initial_file {
-        Some(path) => load_and_render(path, &strings).unwrap_or_else(|| {
-            build_page(
-                &format!(
-                    r#"<div class="empty"><div class="icon">#</div>{}</div>"#,
-                    strings.cannot_read
-                ),
-                "",
-                None,
-                &strings,
-                true,
-            )
-        }),
+        Some(path) => fs::read_to_string(path).ok().map_or_else(
+            || {
+                build_page(
+                    &format!(
+                        r#"<div class="empty"><div class="icon">#</div>{}</div>"#,
+                        strings.cannot_read
+                    ),
+                    "",
+                    None,
+                    EnhanceFlags::default(),
+                    &strings,
+                    true,
+                )
+            },
+            |raw| {
+                let html_body = md_to_html(&raw);
+                let base_href = base_href_for_file(path);
+                initial_flags = enhance_flags_for(&raw);
+                build_page(
+                    &html_body,
+                    &raw,
+                    base_href.as_deref(),
+                    initial_flags,
+                    &strings,
+                    false,
+                )
+            },
+        ),
         None => build_page(
             &format!(
                 r#"<div class="empty"><div class="icon">#</div>{}</div>"#,
@@ -804,12 +973,14 @@ fn main() {
             ),
             "",
             None,
+            EnhanceFlags::default(),
             &strings,
             true,
         ),
     };
 
     let file_path: Arc<Mutex<Option<PathBuf>>> = Arc::new(Mutex::new(initial_file));
+    let enhance_flags: Arc<Mutex<EnhanceFlags>> = Arc::new(Mutex::new(initial_flags));
     let last_self_write: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
     let file_path_for_ipc = Arc::clone(&file_path);
     let last_self_write_for_ipc = Arc::clone(&last_self_write);
@@ -954,6 +1125,8 @@ fn main() {
         }
     }
 
+    let mut loaded_enhancers = EnhanceFlags::default();
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
@@ -964,13 +1137,22 @@ fn main() {
                     if let Ok(raw) = fs::read_to_string(path) {
                         let html = md_to_html(&raw);
                         let base_href = base_href_for_file(path).unwrap_or_default();
+                        let flags = enhance_flags_for(&raw);
+                        *enhance_flags.lock().unwrap() = flags;
                         let js = format!(
-                            "if(window.__setContent)window.__setContent('{}', '{}', '{}');",
+                            "if(window.__setContent)window.__setContent('{}', '{}', '{}', {}, {});",
                             escape_js(&html),
                             escape_js(&raw),
-                            escape_js(&base_href)
+                            escape_js(&base_href),
+                            flags.math,
+                            flags.mermaid
                         );
                         let _ = webview.evaluate_script(&js);
+                        for js in build_enhancer_bootstrap(flags, loaded_enhancers) {
+                            let _ = webview.evaluate_script(&js);
+                        }
+                        loaded_enhancers.math |= flags.math;
+                        loaded_enhancers.mermaid |= flags.mermaid;
 
                         let name = path
                             .file_name()
@@ -1013,11 +1195,20 @@ fn main() {
                 if let Some(ref path) = fp {
                     if let Ok(raw) = fs::read_to_string(path) {
                         let html = md_to_html(&raw);
+                        let flags = enhance_flags_for(&raw);
+                        *enhance_flags.lock().unwrap() = flags;
                         let js = format!(
-                            "if(window.__setPreview)window.__setPreview('{}');",
-                            escape_js(&html)
+                            "if(window.__setPreview)window.__setPreview('{}', {}, {});",
+                            escape_js(&html),
+                            flags.math,
+                            flags.mermaid
                         );
                         let _ = webview.evaluate_script(&js);
+                        for js in build_enhancer_bootstrap(flags, loaded_enhancers) {
+                            let _ = webview.evaluate_script(&js);
+                        }
+                        loaded_enhancers.math |= flags.math;
+                        loaded_enhancers.mermaid |= flags.mermaid;
                     }
                 }
             }
@@ -1040,6 +1231,12 @@ fn main() {
                 // this, even in bench mode, so subsequent panes would still
                 // highlight — bench just exits right after measuring.
                 let _ = webview.evaluate_script(&hljs_bootstrap);
+                let flags = *enhance_flags.lock().unwrap();
+                for js in build_enhancer_bootstrap(flags, loaded_enhancers) {
+                    let _ = webview.evaluate_script(&js);
+                }
+                loaded_enhancers.math |= flags.math;
+                loaded_enhancers.mermaid |= flags.mermaid;
                 if bench {
                     eprintln!("[bench] +{}ms ready", t0.elapsed().as_millis());
                     *control_flow = ControlFlow::Exit;

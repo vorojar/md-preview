@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0
+
+- 新增 Mermaid 图表渲染：支持 ```` ```mermaid ```` fenced code block，普通 Markdown 首屏不加载 Mermaid，只有检测到 Mermaid 代码块时才在首屏 paint 后注入本地运行时并异步渲染
+- 新增 KaTeX 数学公式渲染：支持 `$...$`、`$$...$$`、`\(...\)`、`\[...\]`，KaTeX JS/CSS/woff2 字体全部离线内置，且只在检测到公式语法时按需加载
+- 保持冷启动轻路径：首屏 HTML 仍不包含 highlight.js、Mermaid 或 KaTeX runtime；无公式/图表的普通 Markdown 只走原有解析和首屏渲染路径
+
 ## 1.0.3
 
 - 修复 macOS 编辑模式下 `Cmd+V` 可能无法粘贴的问题：补齐标准 App/Edit 菜单，让剪切、复制、粘贴、全选、撤销/重做经由系统响应链分发到当前编辑区
