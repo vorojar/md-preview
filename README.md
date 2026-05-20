@@ -27,6 +27,7 @@ A blazing-fast, cross-platform Markdown preview tool built with **Rust** and sys
 - **Inline edit** — hover-reveal toolbar in the top-right toggles between preview and source edit; `Cmd/Ctrl+E` to flip, `Cmd/Ctrl+S` to save. Stays out of your way when you only want to read.
 - **Print** — `Cmd/Ctrl+P` or the print button; toolbar and editor are stripped from the printed page automatically
 - **Syntax highlighting** — 40+ languages, powered by highlight.js (fully offline, deferred past first paint)
+- **Math & diagrams** — KaTeX formulas and Mermaid diagrams, fully offline and loaded only when the document uses them
 - **Dark mode** — auto-follows system theme (macOS / Windows / Linux)
 - **GFM support** — tables, task lists, strikethrough, heading anchors
 - **Remembers window** — last position and size restored on next launch; new windows center on the primary monitor
@@ -80,6 +81,8 @@ md-preview
 - **[wry](https://github.com/tauri-apps/wry)** — cross-platform WebView library (macOS: WebKit, Windows: WebView2, Linux: WebKitGTK)
 - **[pulldown-cmark](https://github.com/raphlinus/pulldown-cmark)** — CommonMark/GFM Markdown parser
 - **[highlight.js](https://highlightjs.org/)** — syntax highlighting for 40+ languages (embedded offline)
+- **[KaTeX](https://katex.org/)** — fast math rendering, embedded offline and loaded on demand
+- **[Mermaid](https://mermaid.js.org/)** — diagram rendering, embedded offline and loaded on demand
 - **[notify](https://github.com/notify-rs/notify)** — cross-platform file watcher
 - **[rfd](https://github.com/PolyMeilex/rfd)** — native file dialogs
 

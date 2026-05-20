@@ -27,6 +27,7 @@
 - **源码编辑** — 右上角 hover 时浮现的工具栏切换预览 / 编辑模式；`Cmd/Ctrl+E` 切换，`Cmd/Ctrl+S` 保存；只想阅读时工具栏自动隐去，不打扰
 - **打印** — `Cmd/Ctrl+P` 或工具栏按钮调起系统打印；工具栏和编辑区在打印样式下自动隐藏
 - **代码高亮** — 40+ 语言，完全离线（延迟到首屏之后加载，不阻塞渲染）
+- **公式和图表** — 支持 KaTeX 数学公式和 Mermaid 图表，完全离线，并且只在文档实际使用时按需加载
 - **暗色模式** — 自动跟随系统主题（macOS / Windows / Linux）
 - **GFM 支持** — 表格、任务列表、删除线、标题锚点
 - **外链跳系统浏览器** — md 里的 http/https/mailto 链接用默认浏览器/邮件客户端打开
@@ -87,6 +88,8 @@ md-preview
 - **[wry](https://github.com/tauri-apps/wry)** — 跨平台 WebView 库（macOS: WebKit，Windows: WebView2，Linux: WebKitGTK）
 - **[pulldown-cmark](https://github.com/raphlinus/pulldown-cmark)** — CommonMark / GFM 解析器
 - **[highlight.js](https://highlightjs.org/)** — 40+ 语言语法高亮（离线嵌入）
+- **[KaTeX](https://katex.org/)** — 快速数学公式渲染，离线内置并按需加载
+- **[Mermaid](https://mermaid.js.org/)** — 图表渲染，离线内置并按需加载
 - **[notify](https://github.com/notify-rs/notify)** — 跨平台文件监听
 - **[rfd](https://github.com/PolyMeilex/rfd)** — 原生文件对话框
 
