@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1
+
+- 新增 GitHub Releases 更新检测：首屏渲染后异步检查最新正式版，发现新版本时在右上角工具栏显示更新按钮，点击打开 GitHub Release 页面
+- 更新检测结果缓存 24 小时，网络失败、GitHub 限流或离线状态静默忽略，不阻塞启动和 Markdown 首屏渲染
+
 ## 1.1.0
 
 - 新增 Mermaid 图表渲染：支持 ```` ```mermaid ```` fenced code block，普通 Markdown 首屏不加载 Mermaid，只有检测到 Mermaid 代码块时才在首屏 paint 后注入本地运行时并异步渲染

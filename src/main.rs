@@ -58,6 +58,7 @@ struct Strings {
     btn_edit: &'static str,
     btn_preview: &'static str,
     btn_print: &'static str,
+    btn_update: &'static str,
 }
 
 impl Strings {
@@ -69,6 +70,7 @@ impl Strings {
                 btn_edit: "编辑 (Cmd/Ctrl+E)",
                 btn_preview: "预览 (Cmd/Ctrl+E)",
                 btn_print: "打印 (Cmd/Ctrl+P)",
+                btn_update: "发现新版本",
             },
             Lang::En => Strings {
                 drop_hint: "Drop a .md file here or press Cmd/Ctrl+O to open",
@@ -76,6 +78,7 @@ impl Strings {
                 btn_edit: "Edit (Cmd/Ctrl+E)",
                 btn_preview: "Preview (Cmd/Ctrl+E)",
                 btn_print: "Print (Cmd/Ctrl+P)",
+                btn_update: "Update available",
             },
         }
     }
@@ -214,6 +217,7 @@ const HLJS_EXTRA_LANGS: &str = concat!(
     include_str!("../assets/hljs/delphi.min.js"),
 );
 const PREVIEW_ENHANCE_JS: &str = include_str!("../assets/enhance/preview-enhance.js");
+const UPDATE_CHECK_JS: &str = include_str!("../assets/enhance/update-check.js");
 const KATEX_JS: &str = include_str!("../assets/katex/katex.min.js");
 const KATEX_CSS: &str = include_str!("../assets/katex/katex.inline.css");
 const MERMAID_JS: &str = include_str!("../assets/mermaid/mermaid.min.js");
@@ -476,6 +480,8 @@ body.empty .toolbar {{ display: none !important; }}
   transition: color 0.15s, background 0.15s;
 }}
 .toolbar button:hover {{ color: #000; background: rgba(255,255,255,1); }}
+.toolbar button[hidden] {{ display: none !important; }}
+.toolbar .update-btn {{ color: #0969da; }}
 @media (prefers-color-scheme: dark) {{
   .toolbar button {{
     background: rgba(40,40,40,0.8);
@@ -483,6 +489,7 @@ body.empty .toolbar {{ display: none !important; }}
     color: #bbb;
   }}
   .toolbar button:hover {{ color: #fff; background: rgba(55,55,55,1); }}
+  .toolbar .update-btn {{ color: #6cb6ff; }}
 }}
 
 /* Source editor textarea — height is auto-grown by JS to match content,
@@ -511,6 +518,7 @@ body.editing #btn-print {{ display: none; }}
 <div class="toolbar">
   <button id="btn-toggle" title="{btn_edit}" aria-label="{btn_edit}"></button>
   <button id="btn-print" title="{btn_print}" aria-label="{btn_print}"></button>
+  <button id="btn-update" class="update-btn" hidden title="{btn_update}" aria-label="{btn_update}"></button>
 </div>
 <div id="app">
   <div id="preview">{preview_html}</div>
@@ -521,15 +529,18 @@ body.editing #btn-print {{ display: none; }}
   var ICON_EDIT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>';
   var ICON_VIEW = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
   var ICON_PRINT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>';
+  var ICON_UPDATE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>';
   var L_EDIT = '{btn_edit}', L_VIEW = '{btn_preview}';
 
   var btnToggle = document.getElementById('btn-toggle');
   var btnPrint = document.getElementById('btn-print');
+  var btnUpdate = document.getElementById('btn-update');
   var ta = document.getElementById('editor');
   var dirty = false;
 
   btnToggle.innerHTML = ICON_EDIT;
   btnPrint.innerHTML = ICON_PRINT;
+  btnUpdate.innerHTML = ICON_UPDATE;
 
   function inEdit() {{ return document.body.classList.contains('editing'); }}
   function setDirty(d) {{
@@ -653,6 +664,13 @@ body.editing #btn-print {{ display: none; }}
 }})();
 window.__mdPreviewFeatureFlags = {{ math: {needs_math}, mermaid: {needs_mermaid} }};
 {preview_enhance_js}
+{update_check_js}
+window.__mdPreviewInstallUpdateCheck({{
+  currentVersion: '{app_version}',
+  buttonLabel: '{btn_update_js}',
+  apiUrl: 'https://api.github.com/repos/vorojar/md-preview/releases/latest',
+  latestUrl: 'https://github.com/vorojar/md-preview/releases/latest'
+}});
 </script>
 </body></html>"#,
         css_light = HLJS_LIGHT,
@@ -663,10 +681,14 @@ window.__mdPreviewFeatureFlags = {{ math: {needs_math}, mermaid: {needs_mermaid}
         btn_edit = s.btn_edit,
         btn_preview = s.btn_preview,
         btn_print = s.btn_print,
+        btn_update = s.btn_update,
+        btn_update_js = escape_js(s.btn_update),
+        app_version = env!("CARGO_PKG_VERSION"),
         body_class = body_class,
         needs_math = flags.math,
         needs_mermaid = flags.mermaid,
         preview_enhance_js = PREVIEW_ENHANCE_JS,
+        update_check_js = UPDATE_CHECK_JS,
     )
 }
 
@@ -675,6 +697,11 @@ fn escape_js(s: &str) -> String {
         .replace('\'', "\\'")
         .replace('\n', "\\n")
         .replace('\r', "\\r")
+}
+
+fn is_allowed_update_url(url: &str) -> bool {
+    url == "https://github.com/vorojar/md-preview/releases/latest"
+        || url.starts_with("https://github.com/vorojar/md-preview/releases/tag/")
 }
 
 /// Decode embedded icon.ico to an RGBA tao Icon for the window chrome.
@@ -1035,6 +1062,10 @@ fn main() {
                 let _ = proxy_for_ipc.send_event(UserEvent::Print);
             } else if body == "ready" {
                 let _ = proxy_for_ipc.send_event(UserEvent::Ready);
+            } else if let Some(url) = body.strip_prefix("open-url:") {
+                if is_allowed_update_url(url) {
+                    let _ = open::that(url);
+                }
             } else if let Some(content) = body.strip_prefix("save:") {
                 let fp = file_path_for_ipc.lock().unwrap().clone();
                 if let Some(path) = fp {

@@ -28,6 +28,7 @@ A blazing-fast, cross-platform Markdown preview tool built with **Rust** and sys
 - **Print** — `Cmd/Ctrl+P` or the print button; toolbar and editor are stripped from the printed page automatically
 - **Syntax highlighting** — 40+ languages, powered by highlight.js (fully offline, deferred past first paint)
 - **Math & diagrams** — KaTeX formulas and Mermaid diagrams, fully offline and loaded only when the document uses them
+- **Update check** — checks GitHub Releases after first paint and opens the latest release page when an update exists
 - **Dark mode** — auto-follows system theme (macOS / Windows / Linux)
 - **GFM support** — tables, task lists, strikethrough, heading anchors
 - **Remembers window** — last position and size restored on next launch; new windows center on the primary monitor
