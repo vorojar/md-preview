@@ -128,17 +128,20 @@ fn load_window_geom() -> Option<WindowGeom> {
     })
 }
 
-fn save_window_geom(window: &Window) {
+fn save_window_geom(window: &Window, observed_inner: LogicalSize<f64>) {
+    // NOTE: macOS tao quirk — `Window::inner_size()` returns the size the
+    // window was *created* with, not the live size after the user drags a
+    // corner. We take in a size cached from `WindowEvent::Resized` events
+    // instead. See the event loop for the cache update.
     let Ok(pos) = window.outer_position() else {
         return;
     };
     let scale = window.scale_factor();
-    let size = window.inner_size();
     let geom = WindowGeom {
         x: pos.x as f64 / scale,
         y: pos.y as f64 / scale,
-        w: size.width as f64 / scale,
-        h: size.height as f64 / scale,
+        w: observed_inner.width,
+        h: observed_inner.height,
     };
     if geom.w < 200.0 || geom.h < 150.0 {
         return;
@@ -1158,6 +1161,12 @@ fn main() {
 
     let mut loaded_enhancers = EnhanceFlags::default();
 
+    // Cache the live inner size — `Window::inner_size()` on macOS returns
+    // the launch-time size, not the user's resized size. We update this
+    // cache on every `WindowEvent::Resized` and read it at save time.
+    let mut last_inner_size_logical: LogicalSize<f64> =
+        LogicalSize::new(geom.w, geom.h);
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
@@ -1284,11 +1293,27 @@ fn main() {
                 }
             }
             TaoEvent::WindowEvent {
+                event: WindowEvent::Resized(new_size),
+                ..
+            } => {
+                let scale = window.scale_factor();
+                last_inner_size_logical = LogicalSize::new(
+                    new_size.width as f64 / scale,
+                    new_size.height as f64 / scale,
+                );
+            }
+            TaoEvent::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
-                save_window_geom(&window);
                 *control_flow = ControlFlow::Exit;
+            }
+            // Fires for *any* exit path — red ⊗ (via Exit above), Cmd+Q,
+            // app-menu Quit, applicationWillTerminate. Saving here covers
+            // all of them. `Window::inner_size()` is unreliable on macOS,
+            // so we rely on `last_inner_size_logical` cached from Resized.
+            TaoEvent::LoopDestroyed => {
+                save_window_geom(&window, last_inner_size_logical);
             }
             _ => {}
         }
