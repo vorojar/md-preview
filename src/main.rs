@@ -947,9 +947,24 @@ fn main() {
         .map(|n| format!("{} — MD Preview", n.to_string_lossy()))
         .unwrap_or_else(|| "MD Preview".to_string());
 
-    let geom = load_window_geom()
+    // Restore size always, restore position only if it's still on-screen.
+    // The previous `filter().unwrap_or_else()` threw the whole geometry
+    // away if the saved position was off-screen — e.g. after a monitor
+    // unplug — which silently reverted the window to the default 900x700
+    // even though the user's preferred *size* was a perfectly valid value
+    // to keep. Decouple the two: any saved size is used as-is; the saved
+    // position is replaced with the centered fallback when it would land
+    // off-screen.
+    let saved = load_window_geom();
+    let centered = centered_geom(&event_loop);
+    let (w, h) = saved
+        .map(|g| (g.w, g.h))
+        .unwrap_or((centered.w, centered.h));
+    let (x, y) = saved
         .filter(|g| geom_visible(g, &event_loop))
-        .unwrap_or_else(|| centered_geom(&event_loop));
+        .map(|g| (g.x, g.y))
+        .unwrap_or((centered.x, centered.y));
+    let geom = WindowGeom { x, y, w, h };
 
     let mut window_builder = WindowBuilder::new()
         .with_title(&title)
