@@ -431,7 +431,7 @@ body {{
   #preview pre {{ background: #2d2d2d !important; }}
   #preview code:not(pre code) {{ background: #2d2d2d; }}
   #preview blockquote {{ border-color: #444; color: #999; }}
-  #preview table th {{ background: #2d2d2d; }}
+  #preview table th {{ background: #2d2d2d; color: #f0f0f0; }}
   #preview table td, #preview table th {{ border-color: #444; }}
   #preview hr {{ border-color: #333; }}
 }}
@@ -444,7 +444,7 @@ body {{
 #preview blockquote {{ border-left: 4px solid #ddd; margin: 0; padding: 0 1em; color: #666; }}
 #preview table {{ border-collapse: collapse; width: 100%; }}
 #preview table th, #preview table td {{ border: 1px solid #ddd; padding: 8px 12px; text-align: left; }}
-#preview table th {{ background: #f6f8fa; font-weight: 600; }}
+#preview table th {{ background: #f6f8fa; font-weight: 600; color: #1a1a1a; }}
 #preview img {{ max-width: 100%; }}
 #preview .katex-display {{ overflow-x: auto; overflow-y: hidden; padding: 0.15em 0; }}
 #preview .mdp-mermaid {{ margin: 1.2em 0; overflow-x: auto; text-align: center; }}
