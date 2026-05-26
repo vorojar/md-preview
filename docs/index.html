@@ -3,35 +3,38 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MD Preview - Tiny native Markdown previewer for macOS, Windows, and Linux</title>
-<meta name="description" content="MD Preview is a tiny native Markdown previewer built with Rust and system WebView. About 5MB, zero Electron, offline syntax highlighting, KaTeX, Mermaid, live reload, and native print.">
-<meta name="keywords" content="markdown preview, markdown viewer, markdown reader, md preview, lightweight markdown app, rust markdown, native markdown viewer, offline markdown, syntax highlighting, katex, mermaid, macos app, windows app, linux app, open source, electron alternative, wry, pulldown-cmark">
+<title>MD Preview — Ultra-lightweight Markdown Preview App for macOS, Windows & Linux</title>
+<meta name="description" content="Free, open-source Markdown preview app. ~5MB binary, native WebView, offline syntax highlighting, KaTeX, Mermaid, live reload, dark mode, and native print. Built with Rust. Supports macOS, Windows, Linux.">
+<meta name="keywords" content="markdown preview, markdown viewer, markdown reader, md preview, lightweight markdown app, rust markdown, native markdown viewer, offline markdown, syntax highlighting, dark mode, macos app, windows app, linux app, open source, free markdown tool, electron alternative, wry, pulldown-cmark">
 <meta name="author" content="vorojar">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://vorojar.github.io/md-preview/">
 
+<!-- Open Graph -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="MD Preview">
-<meta property="og:title" content="MD Preview - Tiny native Markdown previewer">
-<meta property="og:description" content="About 5MB. Zero Electron. Local-first Markdown preview with offline code highlighting, KaTeX, Mermaid, live reload, and native print.">
+<meta property="og:title" content="MD Preview — Ultra-lightweight Markdown Preview App">
+<meta property="og:description" content="~5MB binary. Zero Electron. Pure native. Offline syntax highlighting, KaTeX, Mermaid, live reload, and native print. Free & open source.">
 <meta property="og:image" content="https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/hero.jpg">
 <meta property="og:image:width" content="1440">
 <meta property="og:image:height" content="1080">
 <meta property="og:url" content="https://vorojar.github.io/md-preview/">
 
+<!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="MD Preview - Tiny native Markdown previewer">
-<meta name="twitter:description" content="Rust + system WebView. About 5MB. No Electron. Works offline.">
+<meta name="twitter:title" content="MD Preview — ~5MB Markdown Preview App">
+<meta name="twitter:description" content="Zero Electron. Pure native. Offline syntax highlighting, KaTeX, Mermaid, live reload, and native print.">
 <meta name="twitter:image" content="https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/hero.jpg">
 
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='white'/%3E%3Ctext x='50' y='68' text-anchor='middle' font-family='ui-monospace, Menlo, Consolas, monospace' font-size='70' font-weight='800' fill='%231a1a1a'%3E%23%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>#</text></svg>">
 
+<!-- Structured Data -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "MD Preview",
-  "description": "Tiny native cross-platform Markdown previewer built with Rust and system WebView. About 5MB, zero Electron, offline syntax highlighting, KaTeX, Mermaid, live reload, and native print.",
+  "description": "Ultra-lightweight cross-platform Markdown preview app built with Rust. ~5MB binary, native WebView, offline syntax highlighting, KaTeX, Mermaid, live reload, dark mode, and native print.",
   "url": "https://vorojar.github.io/md-preview/",
   "downloadUrl": "https://github.com/vorojar/md-preview/releases",
   "operatingSystem": "macOS, Windows, Linux",
@@ -44,569 +47,404 @@
   "sourceOrganization": { "@type": "Organization", "name": "GitHub", "url": "https://github.com/vorojar/md-preview" }
 }
 </script>
-
 <style>
-:root {
-  color-scheme: light;
-  --ink: #191816;
-  --muted: #625f59;
-  --soft: #f6f3ee;
-  --paper: #fffdf9;
-  --line: #ded8ce;
-  --green: #246b4f;
-  --blue: #245c9c;
-  --rust: #a44f2f;
-  --code: #26231f;
-}
+:root { color-scheme: light; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
-* { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
 body {
-  margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   line-height: 1.6;
-  color: var(--ink);
-  background: var(--paper);
+  color: #1a1a1a;
+  background: #fff;
 }
-a { color: inherit; }
-img { max-width: 100%; display: block; }
 
-.lang-switch {
-  position: fixed;
-  top: 18px;
-  right: 18px;
-  z-index: 20;
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid rgba(255,255,255,.45);
-  background: rgba(25,24,22,.58);
-  backdrop-filter: blur(12px);
-  border-radius: 999px;
-}
-.lang-btn {
-  min-width: 48px;
-  min-height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  color: rgba(255,255,255,.78);
-  font-size: 13px;
-  text-decoration: none;
-}
-.lang-btn.active { color: var(--ink); background: #fffdf9; }
 
+/* Hero */
 .hero {
-  min-height: 92vh;
-  display: grid;
-  align-items: end;
-  position: relative;
-  overflow: hidden;
-  background: #171512;
+  text-align: center;
+  padding: 80px 24px 60px;
+  background: #fafafa;
 }
-.hero::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg, rgba(12,11,10,.92) 0%, rgba(12,11,10,.70) 42%, rgba(12,11,10,.18) 100%),
-    linear-gradient(0deg, rgba(12,11,10,.78) 0%, rgba(12,11,10,0) 42%),
-    url("https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/hero.jpg") center right / cover no-repeat;
-  transform: scale(1.02);
-}
-.hero-inner {
-  position: relative;
-  width: min(1120px, calc(100% - 40px));
-  margin: 0 auto;
-  padding: 104px 0 76px;
-  color: white;
-}
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  min-height: 30px;
-  padding: 0 12px;
-  border: 1px solid rgba(255,255,255,.28);
-  border-radius: 999px;
-  color: rgba(255,255,255,.84);
-  font-size: 13px;
-  background: rgba(255,255,255,.08);
-}
-h1 {
-  margin: 22px 0 16px;
-  max-width: 760px;
+
+.hero-icon {
   font-size: 64px;
-  line-height: 1.02;
-  letter-spacing: 0;
-  text-wrap: balance;
+  color: #ccc;
+  margin-bottom: 16px;
 }
-.hero-copy {
-  max-width: 680px;
-  margin: 0 0 30px;
-  color: rgba(255,255,255,.82);
-  font-size: 19px;
+
+.hero h1 {
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  margin-bottom: 12px;
 }
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
+
+.hero .tagline {
+  font-size: 20px;
+  color: #666;
+  max-width: 560px;
+  margin: 0 auto 36px;
 }
-.button {
-  min-height: 48px;
+
+.cta {
   display: inline-flex;
-  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
   justify-content: center;
-  padding: 0 20px;
+}
+
+.cta a {
+  display: inline-block;
+  padding: 12px 28px;
   border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
   text-decoration: none;
-  font-weight: 650;
-}
-.button.primary { background: #fffdf9; color: var(--ink); }
-.button.secondary { border: 1px solid rgba(255,255,255,.34); color: white; }
-.hero-proof {
-  margin-top: 44px;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(120px, 1fr));
-  gap: 1px;
-  max-width: 760px;
-  border: 1px solid rgba(255,255,255,.18);
-  background: rgba(255,255,255,.18);
-}
-.proof-item {
-  padding: 15px 16px;
-  background: rgba(12,11,10,.42);
-}
-.proof-value {
-  display: block;
-  font-size: 22px;
-  font-weight: 760;
-}
-.proof-label {
-  display: block;
-  color: rgba(255,255,255,.70);
-  font-size: 13px;
+  transition: all 0.2s;
 }
 
-main { background: var(--paper); }
-.section {
-  width: min(1120px, calc(100% - 40px));
-  margin: 0 auto;
-  padding: 74px 0;
+.cta-primary {
+  background: #1a1a1a;
+  color: #fff;
 }
-.section.compact { padding-top: 56px; }
-.section-head {
+.cta-primary:hover { background: #333; }
+
+
+.cta-secondary {
+  background: none;
+  color: #1a1a1a;
+  border: 1px solid #ddd;
+}
+.cta-secondary:hover { background: #f5f5f5; }
+
+/* Screenshot */
+.screenshot {
+  text-align: center;
+  padding: 40px 24px 60px;
+  background: #fafafa;
+}
+
+
+.screenshot img {
   max-width: 720px;
-  margin-bottom: 30px;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
 }
-.kicker {
-  margin: 0 0 10px;
-  color: var(--green);
-  font-weight: 750;
-  font-size: 13px;
-  text-transform: uppercase;
+
+/* Stats */
+.stats {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  padding: 48px 24px;
+  background: #fafafa;
+  flex-wrap: wrap;
 }
-h2 {
-  margin: 0;
+
+.stat {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px 32px;
+  text-align: center;
+  min-width: 160px;
+}
+
+.stat .number {
   font-size: 36px;
-  line-height: 1.16;
-  letter-spacing: 0;
-  text-wrap: balance;
-}
-.lead {
-  margin: 14px 0 0;
-  max-width: 720px;
-  color: var(--muted);
-  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -1px;
 }
 
-.use-grid {
-  display: grid;
-  grid-template-columns: 1.1fr .9fr;
-  gap: 38px;
-  align-items: center;
-}
-.device {
-  border: 1px solid var(--line);
-  background: #ebe5da;
-  padding: 12px;
-  border-radius: 8px;
-  box-shadow: 0 22px 55px rgba(32,26,18,.16);
-}
-.device img { border-radius: 5px; }
-.points {
-  display: grid;
-  gap: 18px;
-}
-.point {
-  border-top: 1px solid var(--line);
-  padding-top: 18px;
-}
-.point h3 {
-  margin: 0 0 6px;
-  font-size: 18px;
-}
-.point p {
-  margin: 0;
-  color: var(--muted);
+.stat .label {
+  font-size: 14px;
+  color: #888;
+  margin-top: 4px;
 }
 
-.feature-grid {
+/* Features */
+.features {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 60px 24px;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
 }
+
 .feature {
-  min-height: 170px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 22px;
-  background: #fffaf2;
+  background: #f8f8f8;
+  border-radius: 12px;
+  padding: 28px;
 }
-.feature:nth-child(2n) { background: #f7fbf7; }
-.feature:nth-child(3n) { background: #f5f8fc; }
+
+.feature .icon {
+  font-size: 28px;
+  margin-bottom: 12px;
+}
+
 .feature h3 {
-  margin: 0 0 8px;
   font-size: 17px;
+  margin-bottom: 6px;
 }
+
 .feature p {
-  margin: 0;
-  color: var(--muted);
+  font-size: 14px;
+  color: #666;
+  line-height: 1.5;
+}
+
+/* Comparison */
+.comparison-section {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 40px 24px 60px;
+  text-align: center;
+}
+
+.comparison-section h2 {
+  font-size: 28px;
+  margin-bottom: 24px;
+}
+
+.comparison {
+  width: 100%;
+  border-collapse: collapse;
   font-size: 15px;
 }
 
-.compare-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: white;
-}
-.compare {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 620px;
-}
-.compare th,
-.compare td {
-  padding: 15px 18px;
+.comparison th, .comparison td {
+  padding: 12px 16px;
   text-align: left;
-  border-bottom: 1px solid var(--line);
-}
-.compare tr:last-child td { border-bottom: 0; }
-.compare th {
-  font-size: 13px;
-  color: var(--muted);
-  background: #faf7f0;
-}
-.compare td:nth-child(2) {
-  color: var(--green);
-  font-weight: 750;
+  border-bottom: 1px solid #eee;
 }
 
-.download-band {
-  background: var(--code);
-  color: white;
+.comparison th {
+  background: #f8f8f8;
+  font-weight: 600;
 }
-.download-grid {
-  width: min(1120px, calc(100% - 40px));
+
+.comparison .highlight {
+  background: #f0faf0;
+}
+
+/* Install */
+.install {
+  max-width: 640px;
   margin: 0 auto;
-  padding: 68px 0;
-  display: grid;
-  grid-template-columns: .85fr 1.15fr;
-  gap: 36px;
-  align-items: start;
-}
-.download-grid .lead { color: rgba(255,255,255,.72); }
-.downloads {
-  display: grid;
-  gap: 10px;
-}
-.download-row {
-  display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: 18px;
-  padding: 17px 18px;
-  border: 1px solid rgba(255,255,255,.18);
-  border-radius: 8px;
-  background: rgba(255,255,255,.06);
-}
-.download-row strong { color: #fff; }
-.download-row span { color: rgba(255,255,255,.70); }
-.download-actions { margin-top: 22px; }
-
-.tech {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  overflow: hidden;
-}
-.tech span {
-  padding: 18px 12px;
+  padding: 40px 24px 60px;
   text-align: center;
-  background: #fffaf2;
-  border-right: 1px solid var(--line);
-  font-weight: 700;
 }
-.tech span:last-child { border-right: 0; }
 
-footer {
-  border-top: 1px solid var(--line);
-  padding: 34px 20px;
-  color: var(--muted);
-  text-align: center;
+.install h2 {
+  font-size: 28px;
+  margin-bottom: 20px;
+}
+
+.install-steps p {
+  margin: 8px 0;
+  font-size: 16px;
+}
+
+.install-steps code {
+  display: inline;
+  background: #f0f0f0;
+  padding: 2px 6px;
+  border-radius: 4px;
   font-size: 14px;
 }
-footer a { color: var(--green); font-weight: 650; }
 
-@media (max-width: 900px) {
-  h1 { font-size: 48px; }
-  .hero-proof { grid-template-columns: repeat(2, 1fr); }
-  .use-grid,
-  .download-grid { grid-template-columns: 1fr; }
-  .feature-grid { grid-template-columns: repeat(2, 1fr); }
-  .tech { grid-template-columns: repeat(3, 1fr); }
-  .tech span:nth-child(3) { border-right: 0; }
-  .tech span:nth-child(-n+3) { border-bottom: 1px solid var(--line); }
+/* Footer */
+footer {
+  text-align: center;
+  padding: 32px 24px;
+  font-size: 14px;
+  color: #999;
+  border-top: 1px solid #eee;
 }
 
-@media (max-width: 620px) {
-  .lang-switch { top: 12px; right: 12px; }
-  .hero { min-height: 88vh; }
-  .hero::before {
-    background:
-      linear-gradient(0deg, rgba(12,11,10,.90) 0%, rgba(12,11,10,.68) 62%, rgba(12,11,10,.34) 100%),
-      url("https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/hero.jpg") center top / cover no-repeat;
-  }
-  .hero-inner {
-    width: min(100% - 28px, 1120px);
-    padding: 92px 0 42px;
-  }
-  h1 { font-size: 38px; }
-  h2 { font-size: 29px; }
-  .hero-copy { font-size: 17px; }
-  .hero-proof { margin-top: 30px; }
-  .section { width: min(100% - 28px, 1120px); padding: 54px 0; }
-  .feature-grid { grid-template-columns: 1fr; }
-  .download-grid { width: min(100% - 28px, 1120px); padding: 52px 0; }
-  .download-row { grid-template-columns: 1fr; gap: 4px; }
-  .button { width: 100%; }
-  .tech { grid-template-columns: repeat(2, 1fr); }
-  .tech span { border-bottom: 1px solid var(--line); }
-  .tech span:nth-child(2n) { border-right: 0; }
-  .tech span:nth-last-child(-n+2) { border-bottom: 0; }
+footer a { color: inherit; }
+
+/* Mobile */
+@media (max-width: 600px) {
+  .hero h1 { font-size: 32px; }
+  .hero .tagline { font-size: 17px; }
+  .stats { gap: 12px; }
+  .stat { min-width: 140px; padding: 20px; }
+  .stat .number { font-size: 28px; }
 }
+/* Language switcher */
+.lang-switch { position: fixed; top: 16px; right: 20px; z-index: 100; display: flex; gap: 4px; background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 2px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.lang-btn { padding: 4px 10px; border-radius: 4px; font-size: 13px; text-decoration: none; color: #666; transition: all 0.2s; }
+.lang-btn.active { background: #1a1a1a; color: #fff; }
+.lang-btn:hover:not(.active) { background: #f0f0f0; }
 </style>
 </head>
 <body>
-<nav class="lang-switch" aria-label="Language">
+
+<!-- Language switcher -->
+<div class="lang-switch">
   <a href="#" class="lang-btn active" data-lang="en">EN</a>
   <a href="#" class="lang-btn" data-lang="zh">中文</a>
-</nav>
+</div>
 
 <header class="hero">
-  <div class="hero-inner">
-    <span class="eyebrow" data-en="Rust + system WebView, no Electron" data-zh="Rust + 系统 WebView，无 Electron"></span>
-    <h1 data-en="MD Preview" data-zh="MD Preview"></h1>
-    <p class="hero-copy" data-en="A tiny native Markdown previewer for opening local docs quickly. Live reload, offline code highlighting, KaTeX, Mermaid, source edit, and native print in a package that stays about 5MB." data-zh="一个很小的原生 Markdown 预览器，用来快速打开本地文档。支持实时刷新、离线代码高亮、KaTeX、Mermaid、源码编辑和原生打印，体积仍保持在约 5MB。"></p>
-    <div class="actions">
-      <a class="button primary" href="https://github.com/vorojar/md-preview/releases/latest" data-en="Download latest" data-zh="下载最新版"></a>
-      <a class="button secondary" href="https://github.com/vorojar/md-preview" data-en="View source" data-zh="查看源码"></a>
-    </div>
-    <div class="hero-proof" aria-label="Project facts">
-      <div class="proof-item">
-        <span class="proof-value">~5MB</span>
-        <span class="proof-label" data-en="release binary" data-zh="发布二进制"></span>
-      </div>
-      <div class="proof-item">
-        <span class="proof-value">0</span>
-        <span class="proof-label" data-en="bundled browsers" data-zh="打包浏览器"></span>
-      </div>
-      <div class="proof-item">
-        <span class="proof-value">40+</span>
-        <span class="proof-label" data-en="highlight languages" data-zh="代码高亮语言"></span>
-      </div>
-      <div class="proof-item">
-        <span class="proof-value">3</span>
-        <span class="proof-label" data-en="desktop platforms" data-zh="桌面平台"></span>
-      </div>
-    </div>
+  <div class="hero-icon" aria-hidden="true">#</div>
+  <h1>MD Preview</h1>
+  <p class="tagline" data-en="Ultra-lightweight Markdown preview. ~5MB binary, zero Electron, live reload, math, diagrams, and native print." data-zh="超轻量 Markdown 预览工具。~5MB 体积，零 Electron，支持实时刷新、公式、图表和原生打印。"></p>
+  <div class="cta">
+    <a class="cta-primary" href="https://github.com/vorojar/md-preview/releases" data-en="Download" data-zh="下载"></a>
+    <a class="cta-secondary" href="https://github.com/vorojar/md-preview" id="star-btn">&#9733; Star on GitHub</a>
   </div>
 </header>
 
-<main>
-  <section class="section compact">
-    <div class="use-grid">
-      <div class="device">
-        <img src="https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/welcome.png" alt="MD Preview welcome window" width="1281" height="1080" loading="lazy">
-      </div>
-      <div>
-        <div class="section-head">
-          <p class="kicker" data-en="Use it beside your editor" data-zh="放在编辑器旁边用"></p>
-          <h2 data-en="Preview Markdown without moving your writing into another app." data-zh="不用把写作迁进另一个应用，也能舒服预览 Markdown。"></h2>
-          <p class="lead" data-en="Open a file from the terminal, drag one into the window, or use the native open dialog. When your editor saves the file, MD Preview refreshes the rendered document automatically." data-zh="从命令行打开、拖入窗口，或者用系统打开对话框都可以。你在编辑器里保存文件后，MD Preview 会自动刷新渲染结果。"></p>
-        </div>
-        <div class="points">
-          <div class="point">
-            <h3 data-en="Clean reading surface" data-zh="干净的阅读界面"></h3>
-            <p data-en="The toolbar stays out of sight until you hover, so long docs feel like documents rather than control panels." data-zh="工具栏只在 hover 时出现，长文档读起来像文档，而不是控制台。"></p>
-          </div>
-          <div class="point">
-            <h3 data-en="Quick fixes when needed" data-zh="需要时快速改字"></h3>
-            <p data-en="Toggle source edit with Cmd/Ctrl+E, save with Cmd/Ctrl+S, then return to the rendered preview." data-zh="用 Cmd/Ctrl+E 切到源码编辑，Cmd/Ctrl+S 保存，再回到渲染预览。"></p>
-          </div>
-          <div class="point">
-            <h3 data-en="Local assets resolve naturally" data-zh="本地资源自然解析"></h3>
-            <p data-en="Relative images use the Markdown file's directory as their base, which keeps project docs and README folders intact." data-zh="相对路径图片以 Markdown 文件所在目录为基准，本地项目文档和 README 目录可以自然显示。"></p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+<section class="screenshot">
+  <img src="https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/hero.jpg" alt="MD Preview app window" loading="lazy" width="1440" height="1080">
+</section>
 
-  <section class="section">
-    <div class="section-head">
-      <p class="kicker" data-en="What it handles" data-zh="它能处理什么"></p>
-      <h2 data-en="Enough Markdown support for real project docs." data-zh="足够覆盖真实项目文档的 Markdown 支持。"></h2>
-      <p class="lead" data-en="The base render path stays fast, and heavier renderers are deferred until after first paint or loaded only when a document needs them." data-zh="基础渲染路径保持轻快，较重的增强渲染会延迟到首屏之后，或只在文档实际需要时加载。"></p>
-    </div>
-    <div class="feature-grid">
-      <article class="feature">
-        <h3 data-en="GitHub-flavored Markdown" data-zh="GitHub 风格 Markdown"></h3>
-        <p data-en="Tables, task lists, strikethrough, heading attributes, anchors, images, blockquotes, and standard CommonMark content." data-zh="支持表格、任务列表、删除线、heading attributes、标题锚点、图片、引用块和标准 CommonMark 内容。"></p>
-      </article>
-      <article class="feature">
-        <h3 data-en="Offline code highlighting" data-zh="离线代码高亮"></h3>
-        <p data-en="highlight.js is embedded and injected after the document is visible, including extra Delphi/Pascal support." data-zh="highlight.js 离线内置，在文档可见后再注入，并额外支持 Delphi / Pascal。"></p>
-      </article>
-      <article class="feature">
-        <h3 data-en="Math formulas" data-zh="数学公式"></h3>
-        <p data-en="KaTeX renders inline and display math while protecting formulas from Markdown emphasis escaping." data-zh="KaTeX 渲染行内和块级公式，并保护公式不被 Markdown 强调语法误处理。"></p>
-      </article>
-      <article class="feature">
-        <h3 data-en="Mermaid diagrams" data-zh="Mermaid 图表"></h3>
-        <p data-en="Fenced mermaid blocks render locally, only for documents that contain Mermaid syntax." data-zh="Mermaid fenced code block 在本地渲染，而且只在文档包含 Mermaid 语法时加载。"></p>
-      </article>
-      <article class="feature">
-        <h3 data-en="Native print" data-zh="原生打印"></h3>
-        <p data-en="Cmd/Ctrl+P uses the platform print dialog and strips editor controls from printed output." data-zh="Cmd/Ctrl+P 调用系统打印对话框，打印输出会移除编辑控件。"></p>
-      </article>
-      <article class="feature">
-        <h3 data-en="Update check" data-zh="更新检测"></h3>
-        <p data-en="After first paint, MD Preview checks GitHub Releases and shows a small update button when a newer version exists." data-zh="首屏之后检查 GitHub Releases，有新版本时显示一个小更新按钮。"></p>
-      </article>
-    </div>
-  </section>
+<section class="stats">
+  <div class="stat">
+    <div class="number">~5MB</div>
+    <div class="label" data-en="Binary size" data-zh="程序体积"></div>
+  </div>
+  <div class="stat">
+    <div class="number">~15MB</div>
+    <div class="label" data-en="Memory usage" data-zh="内存占用"></div>
+  </div>
+  <div class="stat">
+    <div class="number">40+</div>
+    <div class="label" data-en="Languages highlighted" data-zh="语言代码高亮"></div>
+  </div>
+  <div class="stat">
+    <div class="number">0</div>
+    <div class="label" data-en="Bundled browsers" data-zh="打包浏览器"></div>
+  </div>
+</section>
 
-  <section class="section">
-    <div class="section-head">
-      <p class="kicker" data-en="Why it feels light" data-zh="为什么它轻"></p>
-      <h2 data-en="No bundled Chromium, no editor framework, no cloud account." data-zh="不打包 Chromium，不塞编辑器框架，也不需要云账号。"></h2>
-      <p class="lead" data-en="MD Preview is a narrow native tool: Rust shell, system WebView, local renderers, and a file watcher." data-zh="MD Preview 是一个边界清晰的原生小工具：Rust 外壳、系统 WebView、本地渲染器和文件监听。"></p>
-    </div>
-    <div class="compare-wrap">
-      <table class="compare">
-        <tr>
-          <th data-en="Dimension" data-zh="维度"></th>
-          <th>MD Preview</th>
-          <th data-en="Typical Electron app" data-zh="常见 Electron 应用"></th>
-        </tr>
-        <tr>
-          <td data-en="Release binary" data-zh="发布二进制"></td>
-          <td>~5MB</td>
-          <td>150+MB</td>
-        </tr>
-        <tr>
-          <td data-en="Runtime" data-zh="运行时"></td>
-          <td data-en="System WebView" data-zh="系统 WebView"></td>
-          <td data-en="Bundled Chromium" data-zh="打包 Chromium"></td>
-        </tr>
-        <tr>
-          <td data-en="Startup path" data-zh="启动路径"></td>
-          <td data-en="Markdown first, enhancers deferred" data-zh="Markdown 先显示，增强渲染延后"></td>
-          <td data-en="Full app runtime first" data-zh="先启动完整应用运行时"></td>
-        </tr>
-        <tr>
-          <td data-en="Data model" data-zh="数据模型"></td>
-          <td data-en="Local files on disk" data-zh="本地磁盘文件"></td>
-          <td data-en="Often project or account based" data-zh="常见为项目或账号模型"></td>
-        </tr>
-      </table>
-    </div>
-  </section>
+<section class="features">
+  <div class="feature">
+    <div class="icon">&#9889;</div>
+    <h3 data-en="Instant startup" data-zh="秒开启动"></h3>
+    <p data-en="Opens in milliseconds. No bundled Chromium, no heavy runtime. Uses your system's native WebView." data-zh="毫秒级启动。不打包 Chromium，不依赖沉重运行时。直接使用系统原生 WebView。"></p>
+  </div>
+  <div class="feature">
+    <div class="icon">&#128269;</div>
+    <h3 data-en="Live reload" data-zh="实时刷新"></h3>
+    <p data-en="Edit your Markdown in any editor. MD Preview watches the file and refreshes automatically." data-zh="用任何编辑器写 Markdown，MD Preview 监听文件变化，自动刷新预览。"></p>
+  </div>
+  <div class="feature">
+    <div class="icon">&#127912;</div>
+    <h3 data-en="Syntax, math & diagrams" data-zh="代码、公式和图表"></h3>
+    <p data-en="40+ highlight.js languages, KaTeX formulas, and Mermaid diagrams. Fully offline — no network needed." data-zh="支持 40+ 语言代码高亮、KaTeX 公式和 Mermaid 图表。完全离线，无需网络。"></p>
+  </div>
+  <div class="feature">
+    <div class="icon">&#127763;</div>
+    <h3 data-en="Dark mode" data-zh="暗色模式"></h3>
+    <p data-en="Automatically follows your system theme. Light and dark, seamlessly." data-zh="自动跟随系统主题切换，亮色暗色无缝衔接。"></p>
+  </div>
+  <div class="feature">
+    <div class="icon">&#128196;</div>
+    <h3 data-en="Open anywhere" data-zh="随处打开"></h3>
+    <p data-en="Double-click any .md file, drag & drop onto the window, use Cmd+O, or pass it as a CLI argument." data-zh="双击 .md 文件直接打开，拖进窗口、Cmd+O、命令行，怎么方便怎么来。"></p>
+  </div>
+  <div class="feature">
+    <div class="icon">&#127759;</div>
+    <h3 data-en="Cross-platform" data-zh="跨平台"></h3>
+    <p data-en="macOS (WebKit), Windows (WebView2), Linux (WebKitGTK). One codebase, native everywhere." data-zh="macOS (WebKit)、Windows (WebView2)、Linux (WebKitGTK)，一套代码，处处原生。"></p>
+  </div>
+  <div class="feature">
+    <div class="icon">&#9998;</div>
+    <h3 data-en="Edit and print in place" data-zh="原地编辑和打印"></h3>
+    <p data-en="Cmd/Ctrl+E toggles source edit, Cmd/Ctrl+S saves. Cmd/Ctrl+P opens the native print dialog — perfect for exporting to PDF." data-zh="Cmd/Ctrl+E 切换源码编辑，Cmd/Ctrl+S 保存。Cmd/Ctrl+P 调起系统原生打印对话框，顺手导出 PDF。"></p>
+  </div>
+  <div class="feature">
+    <div class="icon">&#128279;</div>
+    <h3 data-en="Plays nice with your OS" data-zh="尊重操作系统"></h3>
+    <p data-en="Links open in your default browser. File association on Windows. Window position and size remembered between sessions. Update checks run after first paint." data-zh="链接走系统默认浏览器。Windows 文件关联。窗口位置/大小退出时记住。更新检测在首屏之后执行。"></p>
+  </div>
+</section>
 
-  <section class="download-band" id="download">
-    <div class="download-grid">
-      <div>
-        <p class="kicker" data-en="Download" data-zh="下载"></p>
-        <h2 data-en="Grab the build for your desktop." data-zh="下载适合你桌面的版本。"></h2>
-        <p class="lead" data-en="The app is free, open source, and MIT licensed. macOS releases are distributed as a signed and notarized universal DMG." data-zh="应用免费、开源，使用 MIT 许可证。macOS release 以已签名、公证的 Universal DMG 分发。"></p>
-        <div class="download-actions">
-          <a class="button primary" href="https://github.com/vorojar/md-preview/releases/latest" data-en="Latest release" data-zh="最新 Release"></a>
-        </div>
-      </div>
-      <div class="downloads">
-        <div class="download-row">
-          <strong>macOS</strong>
-          <span><code>MD-Preview-macOS-universal.dmg</code> - Apple Silicon and Intel</span>
-        </div>
-        <div class="download-row">
-          <strong>Windows</strong>
-          <span><code>MD-Preview-windows-x64.zip</code> - GUI executable</span>
-        </div>
-        <div class="download-row">
-          <strong>Linux</strong>
-          <span><code>MD-Preview-linux-x64.tar.gz</code> - WebKitGTK required</span>
-        </div>
-      </div>
-    </div>
-  </section>
+<section class="comparison-section">
+  <h2 data-en="Why MD Preview?" data-zh="为什么选 MD Preview？"></h2>
+  <table class="comparison">
+    <tr>
+      <th></th>
+      <th>MD Preview</th>
+      <th data-en="Electron-based" data-zh="Electron 方案"></th>
+    </tr>
+    <tr class="highlight">
+      <td data-en="Binary size" data-zh="程序体积"></td>
+      <td><strong>~5.1 MB</strong></td>
+      <td>150+ MB</td>
+    </tr>
+    <tr class="highlight">
+      <td data-en="Memory" data-zh="内存占用"></td>
+      <td><strong>~15 MB</strong></td>
+      <td>200+ MB</td>
+    </tr>
+    <tr class="highlight">
+      <td data-en="Startup" data-zh="启动速度"></td>
+      <td><strong data-en="Instant" data-zh="秒开"></strong></td>
+      <td data-en="2-5 seconds" data-zh="2-5 秒"></td>
+    </tr>
+    <tr>
+      <td data-en="Runtime" data-zh="运行时"></td>
+      <td data-en="System WebView" data-zh="系统 WebView"></td>
+      <td data-en="Bundled Chromium" data-zh="打包 Chromium"></td>
+    </tr>
+  </table>
+</section>
 
-  <section class="section">
-    <div class="section-head">
-      <p class="kicker" data-en="Stack" data-zh="技术栈"></p>
-      <h2 data-en="Small pieces, deliberately chosen." data-zh="少而明确的技术选择。"></h2>
-      <p class="lead" data-en="The release profile is tuned for size with LTO, one codegen unit, symbol stripping, and panic aborts." data-zh="Release profile 面向体积优化：LTO、单 codegen unit、符号裁剪和 panic abort。"></p>
-    </div>
-    <div class="tech" aria-label="Technology stack">
-      <span>Rust</span>
-      <span>wry</span>
-      <span>tao</span>
-      <span>pulldown-cmark</span>
-      <span>notify</span>
-      <span>rfd</span>
-    </div>
-  </section>
-</main>
+<section class="install">
+  <h2 data-en="Install" data-zh="安装"></h2>
+  <div class="install-steps">
+    <p><strong>macOS</strong> — <span data-en="Download DMG, drag to Applications, done." data-zh="下载 DMG，拖到应用程序，搞定。"></span></p>
+    <p><strong>Windows</strong> — <span data-en="Download ZIP, extract, run" data-zh="下载 ZIP，解压，运行"></span> <code>md-preview.exe</code></p>
+    <p><strong>Linux</strong> — <span data-en="Download tar.gz, extract, run" data-zh="下载 tar.gz，解压，运行"></span> <code>./md-preview</code></p>
+  </div>
+  <div class="cta" style="margin-top: 24px;">
+    <a class="cta-primary" href="https://github.com/vorojar/md-preview/releases/latest" data-en="Download Latest Release" data-zh="下载最新版本"></a>
+  </div>
+</section>
 
 <footer>
-  <span data-en='Built with Rust and <a href="https://github.com/tauri-apps/wry">wry</a>. MIT licensed. <a href="https://github.com/vorojar/md-preview">Source on GitHub</a>.' data-zh='基于 Rust 和 <a href="https://github.com/tauri-apps/wry">wry</a> 构建。MIT 开源。<a href="https://github.com/vorojar/md-preview">GitHub 源码</a>。'></span>
+  <p data-en='Built with Rust + <a href="https://github.com/tauri-apps/wry">wry</a>. MIT License. <a href="https://github.com/vorojar/md-preview">Source on GitHub</a>.'
+     data-zh='基于 Rust + <a href="https://github.com/tauri-apps/wry">wry</a> 构建。MIT 开源协议。<a href="https://github.com/vorojar/md-preview">GitHub 源码</a>。'></p>
 </footer>
 
 <script>
-(function() {
-  var lang = (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
-
-  function apply(next) {
-    lang = next;
-    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
-    document.querySelectorAll('[data-' + lang + ']').forEach(function(el) {
-      el.innerHTML = el.getAttribute('data-' + lang);
+(function(){
+  var lang = (navigator.language || '').startsWith('zh') ? 'zh' : 'en';
+  function apply(l) {
+    lang = l;
+    document.querySelectorAll('[data-'+l+']').forEach(function(el){
+      var val = el.getAttribute('data-'+l);
+      if (el.tagName === 'P' || el.tagName === 'SPAN' || el.tagName === 'STRONG' || el.tagName === 'TD' || el.tagName === 'TH') el.innerHTML = val;
+      else if (el.tagName === 'A') el.innerHTML = val;
+      else el.innerHTML = val;
     });
-    document.querySelectorAll('.lang-btn').forEach(function(btn) {
-      btn.classList.toggle('active', btn.dataset.lang === lang);
+    document.querySelectorAll('.lang-btn').forEach(function(b){
+      b.classList.toggle('active', b.dataset.lang === l);
     });
+    document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en';
   }
-
-  document.querySelectorAll('.lang-btn').forEach(function(btn) {
-    btn.addEventListener('click', function(event) {
-      event.preventDefault();
-      apply(btn.dataset.lang);
-    });
+  document.querySelectorAll('.lang-btn').forEach(function(b){
+    b.addEventListener('click', function(e){ e.preventDefault(); apply(this.dataset.lang); });
   });
-
   apply(lang);
 })();
+
+// Dynamic star count
+fetch("https://api.github.com/repos/vorojar/md-preview")
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(d.stargazers_count!==undefined){
+      var btn=document.getElementById("star-btn");
+      btn.innerHTML="\u2605 Star "+d.stargazers_count;
+    }
+  }).catch(function(){});
 </script>
+
 </body>
 </html>
