@@ -4,7 +4,7 @@
 )]
 
 use notify::{Event, EventKind, RecursiveMode, Watcher};
-use pulldown_cmark::{Options, Parser, html};
+use pulldown_cmark::{html, Options, Parser};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -25,7 +25,7 @@ enum UserEvent {
     FileSaved,   // our own save: refresh preview only, leave textarea cursor alone
     DirtyChanged(bool),
     Print, // route print through wry's native API (WKWebView ignores window.print())
-    Ready,     // first paint landed: inject hljs now; if bench mode, also exit
+    Ready, // first paint landed: inject hljs now; if bench mode, also exit
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -40,6 +40,17 @@ impl EnhanceFlags {
     }
 }
 
+fn is_help_arg(arg: &str) -> bool {
+    arg == "-h" || arg == "--help"
+}
+
+fn print_help() {
+    println!(
+        "MD Preview {}\n\nUsage:\n  md-preview [file.md]\n\nOptions:\n  -h, --help    Show this help message",
+        env!("CARGO_PKG_VERSION")
+    );
+}
+
 #[derive(Copy, Clone)]
 enum Lang {
     Zh,
@@ -48,7 +59,13 @@ enum Lang {
 
 fn detect_lang() -> Lang {
     sys_locale::get_locale()
-        .map(|l| if l.to_lowercase().starts_with("zh") { Lang::Zh } else { Lang::En })
+        .map(|l| {
+            if l.to_lowercase().starts_with("zh") {
+                Lang::Zh
+            } else {
+                Lang::En
+            }
+        })
         .unwrap_or(Lang::En)
 }
 
@@ -237,8 +254,9 @@ fn percent_encode_file_path(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for &b in s.as_bytes() {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'/' | b':' | b'-' | b'_' | b'.'
-            | b'~' => out.push(b as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'/' | b':' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
             _ => out.push_str(&format!("%{b:02X}")),
         }
     }
@@ -544,6 +562,9 @@ body.editing #btn-print {{ display: none; }}
   btnUpdate.innerHTML = ICON_UPDATE;
 
   function inEdit() {{ return document.body.classList.contains('editing'); }}
+  document.addEventListener('contextmenu', function(e) {{
+    if (!inEdit() || e.target !== ta) e.preventDefault();
+  }});
   function setDirty(d) {{
     if (dirty === d) return;
     dirty = d;
@@ -593,6 +614,11 @@ body.editing #btn-print {{ display: none; }}
   window.addEventListener('resize', function() {{ if (inEdit()) autoResize(); }});
 
   document.addEventListener('keydown', function(e) {{
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'r' || e.key === 'R')) {{
+      e.preventDefault();
+      if (!inEdit()) window.ipc.postMessage('refresh');
+      return;
+    }}
     if ((e.metaKey || e.ctrlKey) && (e.key === 'o' || e.key === 'O')) {{
       e.preventDefault();
       window.ipc.postMessage('open');
@@ -724,6 +750,29 @@ mod tests {
         assert!(html.contains(r#"<span class="math math-inline">x_{n}</span>"#));
         assert!(!html.contains("<em>"));
     }
+
+    #[test]
+    fn help_flags_are_recognized() {
+        assert!(is_help_arg("-h"));
+        assert!(is_help_arg("--help"));
+        assert!(!is_help_arg("--edit"));
+    }
+
+    #[test]
+    fn page_blocks_native_preview_reload_paths() {
+        let strings = Strings::for_lang(Lang::En);
+        let page = build_page(
+            &md_to_html("# Hello"),
+            "# Hello",
+            None,
+            EnhanceFlags::default(),
+            &strings,
+            false,
+        );
+
+        assert!(page.contains("document.addEventListener('contextmenu'"));
+        assert!(page.contains("window.ipc.postMessage('refresh')"));
+    }
 }
 
 /// Decode embedded icon.ico to an RGBA tao Icon for the window chrome.
@@ -761,8 +810,8 @@ fn register_as_default(_lang: Lang) {
 /// default-handler changes — only the Settings app can confirm it).
 #[cfg(target_os = "windows")]
 fn register_as_default(_lang: Lang) {
-    use winreg::RegKey;
     use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
 
     let marker_dir = config_dir();
     let marker = marker_dir.join(".md-preview-registered");
@@ -941,19 +990,27 @@ fn main() {
     };
     bench_log("main_start");
 
+    // CLI: md-preview [file.md]
+    let arg1 = std::env::args().nth(1);
+    if arg1.as_deref().map(is_help_arg).unwrap_or(false) {
+        print_help();
+        return;
+    }
+
     let lang = detect_lang();
     let strings = Strings::for_lang(lang);
     register_as_default(lang);
     bench_log("after_register");
 
-    // CLI: md-preview [file.md]
-    let initial_file: Option<PathBuf> = std::env::args().nth(1).map(PathBuf::from).and_then(|p| {
+    let initial_file: Option<PathBuf> = arg1.map(PathBuf::from).and_then(|p| {
         let p = if p.is_relative() {
             std::env::current_dir().unwrap_or_default().join(p)
         } else {
             p
         };
-        if p.exists() { Some(p) } else {
+        if p.exists() {
+            Some(p)
+        } else {
             eprintln!("File not found: {}", p.display());
             None
         }
@@ -1084,6 +1141,8 @@ fn main() {
                 let _ = proxy_for_ipc.send_event(UserEvent::Print);
             } else if body == "ready" {
                 let _ = proxy_for_ipc.send_event(UserEvent::Ready);
+            } else if body == "refresh" {
+                let _ = proxy_for_ipc.send_event(UserEvent::FileChanged);
             } else if let Some(url) = body.strip_prefix("open-url:") {
                 if is_allowed_update_url(url) {
                     let _ = open::that(url);
@@ -1117,8 +1176,7 @@ fn main() {
                 }
                 true
             }
-        })
-        ;
+        });
 
     #[cfg(target_os = "linux")]
     let webview = {
@@ -1145,8 +1203,7 @@ fn main() {
     );
 
     // File watcher state
-    let watcher_holder: Arc<Mutex<Option<notify::RecommendedWatcher>>> =
-        Arc::new(Mutex::new(None));
+    let watcher_holder: Arc<Mutex<Option<notify::RecommendedWatcher>>> = Arc::new(Mutex::new(None));
     let file_path_for_event = Arc::clone(&file_path);
     let watcher_for_event = Arc::clone(&watcher_holder);
 
@@ -1156,22 +1213,20 @@ fn main() {
         let last_self_write_init = Arc::clone(&last_self_write);
         let fp = file_path_for_event.lock().unwrap().clone();
         if let Some(ref path) = fp {
-            if let Ok(mut watcher) =
-                notify::recommended_watcher(move |res: Result<Event, _>| {
-                    if let Ok(ev) = res {
-                        if matches!(ev.kind, EventKind::Modify(_) | EventKind::Create(_)) {
-                            let suppress = last_self_write_init
-                                .lock()
-                                .unwrap()
-                                .map(|t| t.elapsed() < Duration::from_millis(500))
-                                .unwrap_or(false);
-                            if !suppress {
-                                let _ = proxy_init.send_event(UserEvent::FileChanged);
-                            }
+            if let Ok(mut watcher) = notify::recommended_watcher(move |res: Result<Event, _>| {
+                if let Ok(ev) = res {
+                    if matches!(ev.kind, EventKind::Modify(_) | EventKind::Create(_)) {
+                        let suppress = last_self_write_init
+                            .lock()
+                            .unwrap()
+                            .map(|t| t.elapsed() < Duration::from_millis(500))
+                            .unwrap_or(false);
+                        if !suppress {
+                            let _ = proxy_init.send_event(UserEvent::FileChanged);
                         }
                     }
-                })
-            {
+                }
+            }) {
                 let _ = watcher.watch(path, RecursiveMode::NonRecursive);
                 *watcher_holder.lock().unwrap() = Some(watcher);
             }
@@ -1222,10 +1277,7 @@ fn main() {
                     if let Ok(mut new_watcher) =
                         notify::recommended_watcher(move |res: Result<Event, _>| {
                             if let Ok(ev) = res {
-                                if matches!(
-                                    ev.kind,
-                                    EventKind::Modify(_) | EventKind::Create(_)
-                                ) {
+                                if matches!(ev.kind, EventKind::Modify(_) | EventKind::Create(_)) {
                                     let suppress = last_self_write_cb
                                         .lock()
                                         .unwrap()

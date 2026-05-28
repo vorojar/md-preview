@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.3
+
+- Added `-h` / `--help` so CLI help no longer gets treated as a Markdown file path.
+- Disabled the preview area's native WebView context menu and intercept `Cmd/Ctrl+R` to refresh from disk, preventing browser-style reload from blanking the in-memory app shell.
+
 ## 1.1.2
 
 - 修复 KaTeX 公式与 Markdown 转义/强调语法冲突的问题：`$\{x\}$`、`$\bar{\mu}_{n}$` 这类公式现在会在 Markdown 解析阶段被保护，再交给 KaTeX 渲染，避免反斜杠和 `_` 被 Markdown 先处理
