@@ -3,7 +3,7 @@
     windows_subsystem = "windows"
 )]
 
-use notify::{Event, EventKind, RecursiveMode, Watcher};
+use notify::{Event, RecursiveMode, Watcher};
 use pulldown_cmark::{html, Options, Parser};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -731,9 +731,37 @@ fn is_allowed_update_url(url: &str) -> bool {
         || url.starts_with("https://github.com/vorojar/md-preview/releases/tag/")
 }
 
+fn watch_scope_for_file(path: &Path) -> &Path {
+    path.parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or(path)
+}
+
+fn event_path_matches_file(event_path: &Path, target: &Path) -> bool {
+    event_path == target
+        || (target.file_name().is_some()
+            && event_path.file_name() == target.file_name()
+            && event_path.parent() == target.parent())
+}
+
+fn event_should_reload_file(ev: &Event, target: &Path) -> bool {
+    if ev.need_rescan() {
+        return true;
+    }
+
+    if !(ev.kind.is_modify() || ev.kind.is_create() || ev.kind.is_remove()) {
+        return false;
+    }
+
+    ev.paths
+        .iter()
+        .any(|event_path| event_path_matches_file(event_path, target))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use notify::EventKind;
 
     #[test]
     fn dollar_math_is_protected_from_markdown_escapes() {
@@ -772,6 +800,33 @@ mod tests {
 
         assert!(page.contains("document.addEventListener('contextmenu'"));
         assert!(page.contains("window.ipc.postMessage('refresh')"));
+    }
+
+    #[test]
+    fn vim_style_target_rewrite_events_reload_current_file() {
+        let target = PathBuf::from("/tmp/note.md");
+        let ev = Event::new(EventKind::Create(notify::event::CreateKind::File))
+            .add_path(PathBuf::from("/tmp/note.md"));
+
+        assert!(event_should_reload_file(&ev, &target));
+    }
+
+    #[test]
+    fn sibling_file_events_do_not_reload_current_file() {
+        let target = PathBuf::from("/tmp/note.md");
+        let ev = Event::new(EventKind::Modify(notify::event::ModifyKind::Data(
+            notify::event::DataChange::Any,
+        )))
+        .add_path(PathBuf::from("/tmp/other.md"));
+
+        assert!(!event_should_reload_file(&ev, &target));
+    }
+
+    #[test]
+    fn file_watch_scope_is_parent_directory() {
+        let target = PathBuf::from("/tmp/note.md");
+
+        assert_eq!(watch_scope_for_file(&target), Path::new("/tmp"));
     }
 }
 
@@ -1213,9 +1268,10 @@ fn main() {
         let last_self_write_init = Arc::clone(&last_self_write);
         let fp = file_path_for_event.lock().unwrap().clone();
         if let Some(ref path) = fp {
+            let target_path = path.clone();
             if let Ok(mut watcher) = notify::recommended_watcher(move |res: Result<Event, _>| {
                 if let Ok(ev) = res {
-                    if matches!(ev.kind, EventKind::Modify(_) | EventKind::Create(_)) {
+                    if event_should_reload_file(&ev, &target_path) {
                         let suppress = last_self_write_init
                             .lock()
                             .unwrap()
@@ -1227,7 +1283,7 @@ fn main() {
                     }
                 }
             }) {
-                let _ = watcher.watch(path, RecursiveMode::NonRecursive);
+                let _ = watcher.watch(watch_scope_for_file(path), RecursiveMode::NonRecursive);
                 *watcher_holder.lock().unwrap() = Some(watcher);
             }
         }
@@ -1274,10 +1330,11 @@ fn main() {
                     *w = None;
                     let proxy_clone = proxy.clone();
                     let last_self_write_cb = Arc::clone(&last_self_write);
+                    let target_path = path.clone();
                     if let Ok(mut new_watcher) =
                         notify::recommended_watcher(move |res: Result<Event, _>| {
                             if let Ok(ev) = res {
-                                if matches!(ev.kind, EventKind::Modify(_) | EventKind::Create(_)) {
+                                if event_should_reload_file(&ev, &target_path) {
                                     let suppress = last_self_write_cb
                                         .lock()
                                         .unwrap()
@@ -1290,7 +1347,8 @@ fn main() {
                             }
                         })
                     {
-                        let _ = new_watcher.watch(path, RecursiveMode::NonRecursive);
+                        let _ = new_watcher
+                            .watch(watch_scope_for_file(path), RecursiveMode::NonRecursive);
                         *w = Some(new_watcher);
                     }
                 }

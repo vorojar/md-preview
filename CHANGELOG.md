@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.4
+
+- Fixed hot reload after Vim/Neovim saves by watching the parent directory and filtering events for the active Markdown file, so atomic rewrite/rename saves continue to refresh correctly.
+
 ## 1.1.3
 
 - Added `-h` / `--help` so CLI help no longer gets treated as a Markdown file path.
