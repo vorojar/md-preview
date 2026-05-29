@@ -8,21 +8,30 @@
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](https://github.com/vorojar/md-preview/releases)
 [![Binary size](https://img.shields.io/badge/binary-~5MB-green)](https://github.com/vorojar/md-preview/releases)
 
-> A tiny native Markdown previewer for people who want to open a `.md` file now, not launch an IDE.
+> A native Markdown previewer for AI-generated docs, README files, plans, Mermaid diagrams, and technical notes. Open the file now, not a whole IDE.
 
-MD Preview is a fast, local-first Markdown viewer built with **Rust** and the system **WebView**. It does not bundle Chromium, does not require Electron, and keeps all rendering assets offline. Drop in a Markdown file, open one from the terminal, or use it as a clean preview window beside your editor.
+MD Preview is a fast, local-first Markdown viewer built with **Rust** and the system **WebView**. It does not bundle Chromium, does not require Electron, and keeps all rendering assets offline. Drop in a Markdown file, open one from the terminal, or keep it beside Cursor, Claude Code, Codex, VS Code, Vim, Zed, or any editor that writes Markdown.
 
 ![MD Preview screenshot](https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/hero.jpg)
 
 ## Why It Exists
 
-Most Markdown tools are either full writing studios or editor plugins. MD Preview is deliberately smaller:
+AI coding tools now generate a lot of Markdown: `README.md`, `plan.md`, task specs, architecture notes, changelogs, KaTeX formulas, and Mermaid diagrams. Most Markdown tools are still either full writing studios or editor plugins. MD Preview is deliberately smaller:
 
 - **Open fast** - native binary, system WebView, no bundled browser runtime.
 - **Stay local** - Markdown, syntax highlighting, math, and diagrams render on your machine.
 - **Follow your editor** - save the file in Vim, VS Code, Cursor, Zed, or anything else; the preview refreshes automatically.
 - **Keep reading clean** - the toolbar only appears on hover, so the document stays the focus.
 - **Handle real Markdown** - code blocks, tables, task lists, math formulas, Mermaid diagrams, images, links, and print all work offline.
+
+## Fits AI Coding Workflows
+
+Use it as a small read-only window next to the tools that generate or edit your docs:
+
+- Preview Claude Code / Codex / Cursor-generated plans without opening a full IDE.
+- Keep Mermaid and KaTeX docs readable while your editor stays in source mode.
+- Review local project notes, specs, and README drafts with live reload.
+- Print or export the rendered preview when you need a clean PDF.
 
 ## Download
 

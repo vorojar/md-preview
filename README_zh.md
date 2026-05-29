@@ -8,21 +8,30 @@
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](https://github.com/vorojar/md-preview/releases)
 [![Binary size](https://img.shields.io/badge/binary-~5MB-green)](https://github.com/vorojar/md-preview/releases)
 
-> 一个很小的原生 Markdown 预览器：打开 `.md` 文件，不必顺手启动一整个 IDE。
+> 给 AI 生成文档、README、计划文档、Mermaid 图和技术笔记用的原生 Markdown 预览器：打开 `.md` 文件，不必顺手启动一整个 IDE。
 
-MD Preview 是用 **Rust** 和系统 **WebView** 写的本地优先 Markdown 预览工具。它不打包 Chromium，不依赖 Electron，渲染资源全部离线内置。你可以拖入文件、从命令行打开文件，或者把它放在常用编辑器旁边当一扇干净的预览窗口。
+MD Preview 是用 **Rust** 和系统 **WebView** 写的本地优先 Markdown 预览工具。它不打包 Chromium，不依赖 Electron，渲染资源全部离线内置。你可以拖入文件、从命令行打开文件，或者把它放在 Cursor、Claude Code、Codex、VS Code、Vim、Zed 等常用工具旁边，当一扇干净的预览窗口。
 
 ![MD Preview 截图](https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/hero.jpg)
 
 ## 为什么做它
 
-很多 Markdown 工具要么是完整写作套件，要么是编辑器插件。MD Preview 刻意保持更小：
+AI 编程工具现在会生成大量 Markdown：`README.md`、`plan.md`、任务说明、架构笔记、变更记录、KaTeX 公式和 Mermaid 图。很多 Markdown 工具仍然要么是完整写作套件，要么是编辑器插件。MD Preview 刻意保持更小：
 
 - **打开快**：原生二进制、系统 WebView，不带一份浏览器运行时。
 - **本地渲染**：Markdown、代码高亮、数学公式、Mermaid 图表都在本机完成。
 - **跟随你的编辑器**：用 Vim、VS Code、Cursor、Zed 或任何编辑器保存文件，预览自动刷新。
 - **阅读不打扰**：工具栏只在 hover 时出现，文档始终是主角。
 - **覆盖真实文档**：代码块、表格、任务列表、公式、图表、图片、链接、打印都能离线工作。
+
+## 适合 AI 编程工作流
+
+把它放在生成或编辑文档的工具旁边，做一个轻量只读窗口：
+
+- 预览 Claude Code / Codex / Cursor 生成的计划文档，不必打开完整 IDE。
+- 编辑器保持源码模式，旁边实时看 Mermaid 和 KaTeX 渲染结果。
+- 审阅本地项目笔记、规格说明和 README 草稿，保存后自动刷新。
+- 需要干净 PDF 时，直接打印渲染后的预览。
 
 ## 下载
 
