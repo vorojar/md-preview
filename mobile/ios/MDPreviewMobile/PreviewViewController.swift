@@ -22,7 +22,7 @@ final class PreviewViewController: UIViewController {
         view.isOpaque = false
         view.backgroundColor = .systemBackground
         view.scrollView.backgroundColor = .systemBackground
-        view.scrollView.contentInsetAdjustmentBehavior = .automatic
+        view.scrollView.contentInsetAdjustmentBehavior = .never
         return view
     }()
 
@@ -66,7 +66,14 @@ final class PreviewViewController: UIViewController {
         present(picker, animated: true)
     }
 
-    private func renderDocument(at url: URL) {
+    private func renderDocument(at url: URL, displayName preferredName: String? = nil, shouldSaveRecent: Bool = true) {
+        let documentName: String
+        if let preferredName, !preferredName.isEmpty {
+            documentName = preferredName
+        } else {
+            documentName = url.lastPathComponent.isEmpty ? "Untitled.md" : url.lastPathComponent
+        }
+
         let didStartAccessing = url.startAccessingSecurityScopedResource()
         defer {
             if didStartAccessing {
@@ -76,19 +83,21 @@ final class PreviewViewController: UIViewController {
 
         do {
             let data = try Data(contentsOf: url)
-            saveRecent(data: data, name: url.lastPathComponent.isEmpty ? "Untitled.md" : url.lastPathComponent)
+            if shouldSaveRecent {
+                saveRecent(data: data, name: documentName)
+            }
             let markdown = decodeMarkdown(data)
             let baseHref = url.isFileURL ? url.deletingLastPathComponent().absoluteString : ""
             let payload = PreviewPayload(
                 markdown: markdown,
-                name: url.lastPathComponent.isEmpty ? "Untitled.md" : url.lastPathComponent,
+                name: documentName,
                 baseHref: baseHref
             )
             let encoded = try JSONEncoder().encode(payload)
             let json = String(decoding: encoded, as: UTF8.self)
             webView.evaluateJavaScript("window.MDPreview && window.MDPreview.render(\(json));")
         } catch {
-            let message = "Cannot read \(url.lastPathComponent)"
+            let message = "Cannot read \(documentName)"
             webView.evaluateJavaScript("window.MDPreview && window.MDPreview.render({markdown:\(message.jsStringLiteral),name:'Read error.md',baseHref:''});")
         }
     }
@@ -124,7 +133,8 @@ final class PreviewViewController: UIViewController {
         guard let directory = recentDirectory() else {
             return
         }
-        let safeName = name.replacingOccurrences(of: "/", with: "-")
+        let displayName = Self.cleanRecentName(name)
+        let safeName = displayName.replacingOccurrences(of: "/", with: "-")
         let fileName = UUID().uuidString + "-" + safeName
         let fileURL = directory.appendingPathComponent(fileName)
         do {
@@ -133,12 +143,12 @@ final class PreviewViewController: UIViewController {
             return
         }
         var items = recentDocuments()
-        let removed = items.filter { $0.name == name }
+        let removed = items.filter { Self.cleanRecentName($0.name) == displayName }
         removed.forEach { item in
             try? FileManager.default.removeItem(at: directory.appendingPathComponent(item.fileName))
         }
-        items.removeAll { $0.name == name }
-        items.insert(RecentDocument(name: name, fileName: fileName), at: 0)
+        items.removeAll { Self.cleanRecentName($0.name) == displayName }
+        items.insert(RecentDocument(name: displayName, fileName: fileName), at: 0)
         let trimmed = Array(items.prefix(8))
         items.dropFirst(8).forEach { item in
             try? FileManager.default.removeItem(at: directory.appendingPathComponent(item.fileName))
@@ -150,8 +160,14 @@ final class PreviewViewController: UIViewController {
     }
 
     private func sendRecentToWeb() {
-        let payload = recentDocuments().enumerated().map { index, item in
-            RecentPayload(id: String(index), name: item.name)
+        var seenNames = Set<String>()
+        let payload = recentDocuments().enumerated().compactMap { index, item -> RecentPayload? in
+            let name = Self.cleanRecentName(item.name)
+            guard !seenNames.contains(name) else {
+                return nil
+            }
+            seenNames.insert(name)
+            return RecentPayload(id: String(index), name: name)
         }
         guard let data = try? JSONEncoder().encode(payload) else {
             return
@@ -171,7 +187,29 @@ final class PreviewViewController: UIViewController {
         guard let directory = recentDirectory() else {
             return
         }
-        openDocument(at: directory.appendingPathComponent(items[index].fileName))
+        renderDocument(
+            at: directory.appendingPathComponent(items[index].fileName),
+            displayName: Self.cleanRecentName(items[index].name),
+            shouldSaveRecent: false
+        )
+    }
+
+    private static func cleanRecentName(_ name: String) -> String {
+        let fallback = name.isEmpty ? "Untitled.md" : name
+        let uuidLength = 36
+        guard name.count > uuidLength + 1 else {
+            return fallback
+        }
+        let separator = name.index(name.startIndex, offsetBy: uuidLength)
+        guard name[separator] == "-" else {
+            return fallback
+        }
+        let prefix = String(name[..<separator])
+        guard UUID(uuidString: prefix) != nil else {
+            return fallback
+        }
+        let rest = String(name[name.index(after: separator)...])
+        return rest.isEmpty ? fallback : rest
     }
 }
 

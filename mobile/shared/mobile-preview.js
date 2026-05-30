@@ -17,6 +17,7 @@
   var searchHits = [];
   var currentHit = -1;
   var recentItems = [];
+  var searchOriginScroll = null;
   var assetBase = new URL('.', window.location.href).href;
   var ICON_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 14 12 8l6 6"/><path d="M12 8v13"/><path d="M20 16.5V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2.5"/><path d="M4 7V5a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v3"/></svg>';
   var ICON_SEARCH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>';
@@ -195,6 +196,27 @@
     updateSearchCount();
   }
 
+  function currentScroll() {
+    return { x: window.scrollX || 0, y: window.scrollY || 0 };
+  }
+
+  function restoreScroll(position) {
+    if (!position) return;
+    window.scrollTo(position.x, position.y);
+    requestAnimationFrame(function() {
+      window.scrollTo(position.x, position.y);
+    });
+  }
+
+  function focusSearchInput(position) {
+    try {
+      searchInput.focus({ preventScroll: true });
+    } catch (_) {
+      searchInput.focus();
+    }
+    restoreScroll(position);
+  }
+
   function runSearch(query) {
     clearSearch();
     query = String(query || '').trim();
@@ -281,9 +303,11 @@
   });
 
   searchToggle.addEventListener('click', function() {
+    var position = currentScroll();
+    searchOriginScroll = position;
     document.body.classList.add('searching');
     searchBox.hidden = false;
-    searchInput.focus();
+    focusSearchInput(position);
   });
 
   searchInput.addEventListener('input', function() {
@@ -302,10 +326,14 @@
   });
 
   function closeSearch() {
+    var position = searchHits.length ? currentScroll() : searchOriginScroll;
+    searchInput.blur();
     document.body.classList.remove('searching');
     searchBox.hidden = true;
     searchInput.value = '';
     clearSearch();
+    restoreScroll(position);
+    searchOriginScroll = null;
   }
 
   searchClose.addEventListener('click', closeSearch);
