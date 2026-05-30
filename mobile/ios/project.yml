@@ -5,8 +5,8 @@ options:
     iOS: "16.0"
 settings:
   base:
-    MARKETING_VERSION: "1.0.4"
-    CURRENT_PROJECT_VERSION: "5"
+    MARKETING_VERSION: "1.0.5"
+    CURRENT_PROJECT_VERSION: "6"
     SWIFT_VERSION: "6.0"
 targets:
   MDPreviewMobile:
