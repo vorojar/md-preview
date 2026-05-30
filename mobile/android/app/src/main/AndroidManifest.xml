@@ -17,27 +17,53 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <intent-filter>
+            <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="content" />
-                <data android:scheme="file" />
                 <data android:mimeType="text/markdown" />
                 <data android:mimeType="text/x-markdown" />
+                <data android:mimeType="text/md" />
+                <data android:mimeType="text/vnd.daringfireball.markdown" />
                 <data android:mimeType="text/plain" />
                 <data android:mimeType="application/octet-stream" />
-                <data android:pathPattern=".*\\.md" />
-                <data android:pathPattern=".*\\.markdown" />
-                <data android:pathPattern=".*\\.mdown" />
-                <data android:pathPattern=".*\\.mkd" />
             </intent-filter>
 
-            <intent-filter>
+            <intent-filter android:priority="1000">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.md" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.markdown" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.mdown" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.mkd" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathSuffix=".md" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathSuffix=".markdown" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathSuffix=".mdown" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathSuffix=".mkd" />
+            </intent-filter>
+
+            <intent-filter android:priority="1000">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" android:mimeType="*/*" android:pathPattern=".*\\.md" />
+                <data android:scheme="file" android:mimeType="*/*" android:pathPattern=".*\\.markdown" />
+                <data android:scheme="file" android:mimeType="*/*" android:pathPattern=".*\\.mdown" />
+                <data android:scheme="file" android:mimeType="*/*" android:pathPattern=".*\\.mkd" />
+                <data android:scheme="file" android:mimeType="*/*" android:pathSuffix=".md" />
+                <data android:scheme="file" android:mimeType="*/*" android:pathSuffix=".markdown" />
+                <data android:scheme="file" android:mimeType="*/*" android:pathSuffix=".mdown" />
+                <data android:scheme="file" android:mimeType="*/*" android:pathSuffix=".mkd" />
+            </intent-filter>
+
+            <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/markdown" />
                 <data android:mimeType="text/x-markdown" />
+                <data android:mimeType="text/md" />
+                <data android:mimeType="text/vnd.daringfireball.markdown" />
                 <data android:mimeType="text/plain" />
                 <data android:mimeType="application/octet-stream" />
             </intent-filter>
