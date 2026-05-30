@@ -4,12 +4,14 @@ import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.provider.OpenableColumns;
+import android.provider.Settings;
 import android.webkit.ValueCallback;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
@@ -30,6 +32,7 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 
 public final class MainActivity extends Activity {
     private static final int OPEN_DOCUMENT_REQUEST = 7;
@@ -121,6 +124,17 @@ public final class MainActivity extends Activity {
             }
             if (stream instanceof Uri) {
                 return (Uri) stream;
+            }
+        }
+        if (Intent.ACTION_SEND_MULTIPLE.equals(intent.getAction())) {
+            ArrayList<Uri> streams;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                streams = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri.class);
+            } else {
+                streams = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+            }
+            if (streams != null && !streams.isEmpty()) {
+                return streams.get(0);
             }
         }
         return null;
@@ -288,6 +302,58 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void openDefaultSettings() {
+        String wpsPackage = installedWpsPackage();
+        if (wpsPackage != null && openAppSettings(wpsPackage)) {
+            return;
+        }
+
+        Intent defaultsIntent = new Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS);
+        try {
+            startActivity(defaultsIntent);
+            return;
+        } catch (ActivityNotFoundException ignored) {
+        }
+
+        if (openAppSettings(getPackageName())) {
+            return;
+        }
+
+        try {
+            startActivity(new Intent(Settings.ACTION_SETTINGS));
+        } catch (ActivityNotFoundException ignored) {
+        }
+    }
+
+    private boolean openAppSettings(String packageName) {
+        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+        intent.setData(Uri.parse("package:" + packageName));
+        try {
+            startActivity(intent);
+            return true;
+        } catch (ActivityNotFoundException ignored) {
+            return false;
+        }
+    }
+
+    private String installedWpsPackage() {
+        String[] candidates = {
+            "cn.wps.moffice_eng",
+            "cn.wps.moffice_i18n",
+            "cn.wps.moffice",
+            "com.kingsoft.moffice_pro"
+        };
+        PackageManager packageManager = getPackageManager();
+        for (String candidate : candidates) {
+            try {
+                packageManager.getPackageInfo(candidate, 0);
+                return candidate;
+            } catch (PackageManager.NameNotFoundException ignored) {
+            }
+        }
+        return null;
+    }
+
     private final class Bridge {
         @JavascriptInterface
         public void openFile() {
@@ -297,6 +363,11 @@ public final class MainActivity extends Activity {
         @JavascriptInterface
         public void openExternal(String url) {
             runOnUiThread(() -> openExternalUrl(url));
+        }
+
+        @JavascriptInterface
+        public void openDefaultSettings() {
+            runOnUiThread(MainActivity.this::openDefaultSettings);
         }
     }
 }

@@ -112,6 +112,24 @@ body.empty #preview {
   margin: 0;
 }
 
+#default-settings {
+  display: none;
+  min-height: 40px;
+  margin-top: 18px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  color: var(--fg);
+  font: inherit;
+  font-size: 14px;
+}
+
+body.android #default-settings {
+  display: inline-flex;
+  align-items: center;
+}
+
 #preview {
   overflow-wrap: anywhere;
 }

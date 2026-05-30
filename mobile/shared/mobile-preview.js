@@ -3,6 +3,7 @@
   var previewEl = document.getElementById('preview');
   var baseEl = document.getElementById('base-href');
   var openButton = document.getElementById('open-file');
+  var defaultSettingsButton = document.getElementById('default-settings');
   var darkSheet = document.getElementById('hljs-dark');
   var lightSheet = document.getElementById('hljs-light');
   var loaded = { katex: false, mermaid: false };
@@ -33,6 +34,10 @@
     var mq = window.matchMedia('(prefers-color-scheme: dark)');
     applyTheme(mq);
     if (mq.addEventListener) mq.addEventListener('change', applyTheme);
+  }
+
+  if (window.MDPreviewAndroid && window.MDPreviewAndroid.openDefaultSettings) {
+    document.body.classList.add('android');
   }
 
   function hasUnescapedPair(text, open, close) {
@@ -140,6 +145,12 @@
     }
     if (window.MDPreviewAndroid && window.MDPreviewAndroid.openFile) {
       window.MDPreviewAndroid.openFile();
+    }
+  });
+
+  defaultSettingsButton.addEventListener('click', function() {
+    if (window.MDPreviewAndroid && window.MDPreviewAndroid.openDefaultSettings) {
+      window.MDPreviewAndroid.openDefaultSettings();
     }
   });
 
