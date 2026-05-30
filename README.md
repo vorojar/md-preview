@@ -21,7 +21,7 @@ AI coding tools now generate a lot of Markdown: `README.md`, `plan.md`, task spe
 - **Open fast** - native binary, system WebView, no bundled browser runtime.
 - **Stay local** - Markdown, syntax highlighting, math, and diagrams render on your machine.
 - **Follow your editor** - save the file in Vim, VS Code, Cursor, Zed, or anything else; the preview refreshes automatically.
-- **Keep reading clean** - the toolbar only appears on hover, so the document stays the focus.
+- **Keep reading clean** - the toolbar only appears on hover, and the start screen gives you Open File plus recent files.
 - **Handle real Markdown** - code blocks, tables, task lists, math formulas, Mermaid diagrams, images, links, and print all work offline.
 
 ## Fits AI Coding Workflows
@@ -30,7 +30,7 @@ Use it as a small read-only window next to the tools that generate or edit your 
 
 - Preview Claude Code / Codex / Cursor-generated plans without opening a full IDE.
 - Keep Mermaid and KaTeX docs readable while your editor stays in source mode.
-- Review local project notes, specs, and README drafts with live reload.
+- Review local project notes, specs, and README drafts with live reload, recent files, and in-document search.
 - Print or export the rendered preview when you need a clean PDF.
 
 ## Download
@@ -66,18 +66,20 @@ cp -r "target/MD Preview.app" /Applications/
 # Open a file directly
 md-preview README.md
 
-# Or launch an empty window and drag in a file
+# Or launch an empty window, use Open File, pick a recent file, or drag one in
 md-preview
 ```
 
-MD Preview accepts `.md` and `.txt` files through drag and drop, the open dialog, or the command line. Relative images are resolved from the Markdown file's directory, so local documentation folders render naturally.
+MD Preview accepts `.md` and `.txt` files through drag and drop, the open dialog, recent files, or the command line. Relative images are resolved from the Markdown file's directory, so local documentation folders render naturally.
 
 ## Features
 
 | Feature | What it means |
 |---|---|
+| Start screen | Empty launches show Open File and local recent files, so the app is useful before anything is loaded. |
 | Drag and drop | Drop a Markdown file into the window and it opens immediately. |
 | CLI open | `md-preview path/to/file.md` opens directly from a shell. |
+| Find in preview | `Cmd/Ctrl+F` opens a compact search bar for the rendered document. |
 | Live reload | External edits refresh the rendered document automatically. |
 | Inline source edit | `Cmd/Ctrl+E` switches to source mode for quick edits; `Cmd/Ctrl+S` saves. |
 | Native print | `Cmd/Ctrl+P` opens the platform print dialog and prints only the preview. |
@@ -95,6 +97,7 @@ MD Preview accepts `.md` and `.txt` files through drag and drop, the open dialog
 | Shortcut | Action |
 |---|---|
 | `Cmd/Ctrl + O` | Open file |
+| `Cmd/Ctrl + F` | Find in preview |
 | `Cmd/Ctrl + E` | Toggle preview/source edit |
 | `Cmd/Ctrl + S` | Save in source edit mode |
 | `Cmd/Ctrl + P` | Print preview |

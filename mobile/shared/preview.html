@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file: data: blob:; img-src 'self' file: data: blob: content:; style-src 'self' 'unsafe-inline'; script-src 'self';">
+  <base id="base-href">
+  <title>MD Preview</title>
+  <link rel="stylesheet" href="mobile-preview.css">
+  <link id="hljs-light" rel="stylesheet" href="vendor/github.min.css">
+  <link id="hljs-dark" rel="stylesheet" href="vendor/github-dark.min.css" media="not all">
+</head>
+<body class="empty">
+  <header id="topbar">
+    <div id="title">MD Preview</div>
+    <div id="search-box" hidden>
+      <input id="search-input" type="search" placeholder="Find" autocomplete="off" autocapitalize="none">
+      <span id="search-count">0</span>
+      <button id="search-close" class="tool-button" type="button" aria-label="Close search" title="Close search"></button>
+    </div>
+    <nav id="top-actions" aria-label="Document actions">
+      <button id="top-open" class="open-file tool-button" type="button" aria-label="Open Markdown file" title="Open"></button>
+      <button id="search-toggle" class="tool-button" type="button" aria-label="Find in document" title="Find"></button>
+      <button id="print-file" class="tool-button" type="button" aria-label="Print document" title="Print"></button>
+    </nav>
+  </header>
+  <main id="app">
+    <section id="empty-state">
+      <div class="mark">#</div>
+      <p>Open a Markdown file.</p>
+      <button class="open-file" type="button" aria-label="Open Markdown file">Open</button>
+      <section id="recent-section" hidden>
+        <h2>Recent</h2>
+        <div id="recent-list"></div>
+      </section>
+    </section>
+    <article id="preview" aria-live="polite"></article>
+  </main>
+  <script src="vendor/marked.umd.js"></script>
+  <script src="vendor/highlight.min.js"></script>
+  <script src="vendor/delphi.min.js"></script>
+  <script src="vendor/preview-enhance.js"></script>
+  <script src="mobile-preview.js"></script>
+</body>
+</html>

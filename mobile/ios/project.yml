@@ -1,0 +1,32 @@
+name: MDPreviewMobile
+options:
+  bundleIdPrefix: app.mdpreview
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    MARKETING_VERSION: "1.0.6"
+    CURRENT_PROJECT_VERSION: "7"
+    SWIFT_VERSION: "6.0"
+targets:
+  MDPreviewMobile:
+    type: application
+    platform: iOS
+    sources:
+      - path: MDPreviewMobile
+      - path: ../shared
+        name: shared
+        type: folder
+        buildPhase: resources
+    resources:
+      - path: MDPreviewMobile/PrivacyInfo.xcprivacy
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.mdpreview.mobile
+        INFOPLIST_FILE: MDPreviewMobile/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: false
+        GENERATE_INFOPLIST_FILE: false
+    scheme:
+      testTargets: []

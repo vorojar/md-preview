@@ -1,1 +1,8 @@
 /target
+.env.mobile-release
+mobile/android/signing/
+mobile/ios/*.xcodeproj
+mobile/ios/build
+mobile/android/.gradle
+mobile/android/build
+mobile/android/app/build

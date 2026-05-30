@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MD Preview — Native Markdown Previewer for AI-Generated Docs</title>
-<meta name="description" content="Free, open-source Markdown preview app for AI-generated docs, README files, plans, Mermaid diagrams, and KaTeX notes. Stable builds for macOS, Windows, Linux, and Android. Rust + system WebView, no Electron.">
+<meta name="description" content="Free, open-source Markdown preview app for AI-generated docs, README files, plans, Mermaid diagrams, and KaTeX notes. Open File, recent files, search, print, and stable builds for macOS, Windows, Linux, and Android. Rust + system WebView, no Electron.">
 <meta name="keywords" content="markdown preview, markdown viewer, markdown reader, android markdown viewer, AI generated docs, Claude Code markdown, Codex markdown, Cursor markdown, Mermaid preview, KaTeX preview, lightweight markdown app, rust markdown, native markdown viewer, offline markdown, electron alternative, wry, pulldown-cmark">
 <meta name="author" content="vorojar">
 <meta name="robots" content="index, follow">
@@ -14,7 +14,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="MD Preview">
 <meta property="og:title" content="MD Preview — Native Markdown Previewer for AI-Generated Docs">
-<meta property="og:description" content="Open README files, AI-generated plans, Mermaid diagrams, and KaTeX notes without launching an IDE. Stable builds for desktop and Android. Rust + system WebView, no Electron.">
+<meta property="og:description" content="Open README files, AI-generated plans, Mermaid diagrams, and KaTeX notes without launching an IDE. Open File, recent files, search, and stable desktop/Android builds. Rust + system WebView, no Electron.">
 <meta property="og:image" content="https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/hero.jpg">
 <meta property="og:image:width" content="1440">
 <meta property="og:image:height" content="1080">
@@ -23,7 +23,7 @@
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="MD Preview — Native Markdown Previewer for AI Docs">
-<meta name="twitter:description" content="Rust + system WebView. No Electron. Stable desktop and Android builds for Markdown files.">
+<meta name="twitter:description" content="Rust + system WebView. No Electron. Open File, recent files, search, print, and stable desktop/Android builds for Markdown files.">
 <meta name="twitter:image" content="https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/hero.jpg">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>#</text></svg>">
@@ -34,12 +34,12 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "MD Preview",
-  "description": "Native cross-platform Markdown preview app for AI-generated docs, README files, plans, Mermaid diagrams, and KaTeX notes. Built with Rust and the system WebView. No Electron, offline rendering, live reload, dark mode, and native print.",
+  "description": "Native cross-platform Markdown preview app for AI-generated docs, README files, plans, Mermaid diagrams, and KaTeX notes. Built with Rust and the system WebView. No Electron, offline rendering, Open File, recent files, search, live reload, dark mode, and native print.",
   "url": "https://vorojar.github.io/md-preview/",
   "downloadUrl": "https://github.com/vorojar/md-preview/releases",
   "operatingSystem": "macOS, Windows, Linux, Android",
   "applicationCategory": "DeveloperApplication",
-  "softwareVersion": "1.1.4",
+  "softwareVersion": "1.1.5",
   "fileSize": "5.1MB",
   "license": "https://opensource.org/licenses/MIT",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -332,7 +332,7 @@ footer a { color: inherit; }
   <h1>MD Preview</h1>
   <p class="tagline" data-en="A native Markdown previewer for AI-generated docs, README files, plans, Mermaid diagrams, and KaTeX notes. Rust + system WebView, no Electron." data-zh="给 AI 生成文档、README、计划文档、Mermaid 图和 KaTeX 笔记用的原生 Markdown 预览器。Rust + 系统 WebView，零 Electron。"></p>
   <div class="cta">
-    <a class="cta-primary" href="https://github.com/vorojar/md-preview/releases/tag/v1.1.4" data-en="Download Desktop" data-zh="下载桌面版"></a>
+    <a class="cta-primary" href="https://github.com/vorojar/md-preview/releases/tag/v1.1.5" data-en="Download Desktop" data-zh="下载桌面版"></a>
     <a class="cta-secondary" href="https://github.com/vorojar/md-preview/releases/tag/mobile-android-v1.0.6" data-en="Download Android" data-zh="下载 Android"></a>
     <a class="cta-secondary" href="https://github.com/vorojar/md-preview" id="star-btn">&#9733; Star on GitHub</a>
     <a class="cta-secondary" href="./rust-webview-ai-docs.html" data-en="Engineering Note" data-zh="工程说明"></a>
@@ -364,7 +364,7 @@ footer a { color: inherit; }
 
 <section class="use-cases">
   <h2 data-en="Built for the Markdown your tools generate all day" data-zh="为每天不断生成的 Markdown 文档而做"></h2>
-  <p class="intro" data-en="Keep it beside Cursor, Claude Code, Codex, VS Code, Vim, or Zed. Your editor stays in source mode; MD Preview renders the local file and refreshes when it changes." data-zh="把它放在 Cursor、Claude Code、Codex、VS Code、Vim 或 Zed 旁边。编辑器保持源码模式，MD Preview 渲染本地文件，并在保存后自动刷新。"></p>
+  <p class="intro" data-en="Keep it beside Cursor, Claude Code, Codex, VS Code, Vim, or Zed. Your editor stays in source mode; MD Preview renders the local file, remembers recent files, searches the preview, and refreshes when it changes." data-zh="把它放在 Cursor、Claude Code、Codex、VS Code、Vim 或 Zed 旁边。编辑器保持源码模式，MD Preview 渲染本地文件，记住最近文件，支持预览搜索，并在保存后自动刷新。"></p>
   <ul class="workflow-list">
     <li data-en="Read AI-generated `plan.md`, specs, and architecture notes without opening a full IDE." data-zh="阅读 AI 生成的 `plan.md`、规格说明和架构笔记，不必打开完整 IDE。"></li>
     <li data-en="Check Mermaid diagrams and KaTeX formulas offline while editing the Markdown source." data-zh="编辑 Markdown 源码时，离线查看 Mermaid 图和 KaTeX 公式渲染结果。"></li>
@@ -383,6 +383,11 @@ footer a { color: inherit; }
     <div class="icon">&#128269;</div>
     <h3 data-en="Live reload" data-zh="实时刷新"></h3>
     <p data-en="Edit your Markdown in any editor. MD Preview watches the file and refreshes automatically." data-zh="用任何编辑器写 Markdown，MD Preview 监听文件变化，自动刷新预览。"></p>
+  </div>
+  <div class="feature">
+    <div class="icon">&#128269;</div>
+    <h3 data-en="Find and recent files" data-zh="搜索和最近文件"></h3>
+    <p data-en="The empty window has Open File and local recent files. Cmd/Ctrl+F searches the rendered preview without turning the app into a heavy editor." data-zh="空白窗口有打开文件和本机最近文件。Cmd/Ctrl+F 在渲染预览里搜索，不把应用做重。"></p>
   </div>
   <div class="feature">
     <div class="icon">&#127912;</div>
@@ -456,7 +461,7 @@ footer a { color: inherit; }
     <p><strong>Android</strong> — <span data-en="Download APK, install, open Markdown files." data-zh="下载 APK，安装后打开 Markdown 文件。"></span></p>
   </div>
   <div class="cta" style="margin-top: 24px;">
-    <a class="cta-primary" href="https://github.com/vorojar/md-preview/releases/tag/v1.1.4" data-en="Download Desktop" data-zh="下载桌面版"></a>
+    <a class="cta-primary" href="https://github.com/vorojar/md-preview/releases/tag/v1.1.5" data-en="Download Desktop" data-zh="下载桌面版"></a>
     <a class="cta-secondary" href="https://github.com/vorojar/md-preview/releases/tag/mobile-android-v1.0.6" data-en="Download Android" data-zh="下载 Android"></a>
   </div>
 </section>

@@ -1,0 +1,419 @@
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #171717;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --soft: #f6f8fa;
+  --link: #0969da;
+  --bar: rgba(255, 255, 255, 0.88);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1e;
+    --fg: #d4d4d4;
+    --muted: #9ca3af;
+    --line: #3f3f46;
+    --soft: #2d2d2d;
+    --link: #6cb6ff;
+    --bar: rgba(30, 30, 30, 0.9);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: max(8px, env(safe-area-inset-top)) 14px 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bar);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+#title {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+#top-actions {
+  display: none;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+body:not(.empty) #top-actions {
+  display: flex;
+}
+
+.tool-button,
+.open-file,
+.recent-item {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  color: var(--fg);
+  font: inherit;
+  font-size: 14px;
+}
+
+.tool-button {
+  display: grid;
+  width: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  place-items: center;
+}
+
+.tool-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+#search-box {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#search-box[hidden] {
+  display: none;
+}
+
+body.searching #title,
+body.searching #top-actions {
+  display: none;
+}
+
+#search-input {
+  min-width: 0;
+  flex: 1;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 16px;
+}
+
+#search-count {
+  min-width: 34px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+#app {
+  width: min(100%, 860px);
+  margin: 0 auto;
+  padding: 18px max(16px, env(safe-area-inset-left)) calc(32px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right));
+}
+
+#empty-state {
+  display: none;
+  min-height: 60vh;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+  color: var(--muted);
+}
+
+body.empty #empty-state {
+  display: flex;
+}
+
+body.empty #preview {
+  display: none;
+}
+
+#empty-state .mark {
+  margin-bottom: 14px;
+  color: var(--line);
+  font-size: 52px;
+  font-weight: 700;
+}
+
+#empty-state p {
+  max-width: 280px;
+  margin: 0;
+}
+
+.open-file {
+  margin-top: 18px;
+}
+
+#top-actions .open-file {
+  margin-top: 0;
+}
+
+#recent-section {
+  width: min(100%, 320px);
+  margin-top: 28px;
+}
+
+#recent-section h2 {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+#recent-list {
+  display: grid;
+  gap: 8px;
+}
+
+.recent-item {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+#preview {
+  overflow-wrap: anywhere;
+}
+
+#preview > :first-child {
+  margin-top: 0;
+}
+
+#preview h1,
+#preview h2,
+#preview h3,
+#preview h4 {
+  margin-top: 1.35em;
+  line-height: 1.25;
+}
+
+#preview h1 {
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--line);
+  font-size: 1.9em;
+}
+
+#preview h2 {
+  padding-bottom: .2em;
+  border-bottom: 1px solid var(--line);
+  font-size: 1.45em;
+}
+
+#preview a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+#preview code {
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--soft);
+  font-size: 90%;
+}
+
+#preview pre {
+  overflow-x: auto;
+  margin: 1em -2px;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--soft);
+  -webkit-overflow-scrolling: touch;
+}
+
+#preview pre code {
+  padding: 0;
+  background: transparent;
+  font-size: 13px;
+}
+
+#preview blockquote {
+  margin: 0;
+  padding: 0 1em;
+  border-left: 4px solid var(--line);
+  color: var(--muted);
+}
+
+#preview table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  -webkit-overflow-scrolling: touch;
+}
+
+#preview th,
+#preview td {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+#preview th {
+  background: var(--soft);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+#preview img,
+#preview svg {
+  max-width: 100%;
+  height: auto;
+}
+
+#preview ul,
+#preview ol {
+  padding-left: 1.6em;
+}
+
+#preview input[type="checkbox"] {
+  margin-right: 6px;
+}
+
+#preview li:has(> input[type="checkbox"]) {
+  list-style: none;
+}
+
+#preview li > input[type="checkbox"]:first-child {
+  width: 18px;
+  height: 18px;
+  margin-left: -1.4em;
+  vertical-align: -3px;
+}
+
+#preview .katex-display,
+#preview .mdp-mermaid {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+#preview .mdp-mermaid {
+  margin: 1.2em 0;
+  text-align: center;
+}
+
+#preview .mdp-mermaid-error,
+#preview .mdp-math-error {
+  color: #b42318;
+}
+
+#preview mark.search-hit {
+  border-radius: 3px;
+  background: #fff2a8;
+  color: inherit;
+}
+
+#preview mark.search-hit.current {
+  background: #ffd166;
+}
+
+@media (min-width: 720px) {
+  #app {
+    padding-top: 28px;
+  }
+}
+
+@media (max-width: 420px) {
+  .tool-button {
+    width: 34px;
+    min-width: 34px;
+  }
+}
+
+@page {
+  margin: 12mm;
+}
+
+@media print {
+  :root {
+    --bg: #ffffff;
+    --fg: #000000;
+    --muted: #555555;
+    --line: #d0d7de;
+    --soft: #f6f8fa;
+    --link: #000000;
+  }
+
+  html,
+  body {
+    min-height: auto;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  #topbar,
+  #search-box,
+  #empty-state {
+    display: none !important;
+  }
+
+  #app {
+    width: auto;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  #preview {
+    display: block !important;
+    overflow-wrap: break-word;
+  }
+
+  #preview a {
+    color: #000000;
+    text-decoration: underline;
+  }
+
+  #preview pre,
+  #preview blockquote,
+  #preview table {
+    break-inside: avoid;
+  }
+
+  #preview .katex-display,
+  #preview .mdp-mermaid {
+    overflow: visible;
+  }
+
+  #preview mark.search-hit {
+    background: transparent;
+  }
+}

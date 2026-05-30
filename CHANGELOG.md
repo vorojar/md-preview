@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.5
+
+- Added a cleaner desktop start screen with a primary Open File action and local recent files.
+- Added toolbar Open and Find actions, including `Cmd/Ctrl+F` in the rendered preview.
+- Updated release links and docs for the new desktop workflow.
+
 ## 1.1.4
 
 - Fixed hot reload after Vim/Neovim saves by watching the parent directory and filtering events for the active Markdown file, so atomic rewrite/rename saves continue to refresh correctly.

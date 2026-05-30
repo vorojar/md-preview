@@ -72,30 +72,48 @@ fn detect_lang() -> Lang {
 struct Strings {
     drop_hint: &'static str,
     cannot_read: &'static str,
+    empty_subtitle: &'static str,
+    open_file: &'static str,
+    recent_title: &'static str,
     btn_edit: &'static str,
     btn_preview: &'static str,
+    btn_open: &'static str,
+    btn_search: &'static str,
     btn_print: &'static str,
     btn_update: &'static str,
+    search_placeholder: &'static str,
 }
 
 impl Strings {
     fn for_lang(lang: Lang) -> Self {
         match lang {
             Lang::Zh => Strings {
-                drop_hint: "拖入 .md 文件 或按 Cmd/Ctrl+O 打开",
+                drop_hint: "打开 Markdown 文件",
                 cannot_read: "无法读取文件",
+                empty_subtitle: "拖入 .md 文件，或从最近文件继续。",
+                open_file: "打开文件",
+                recent_title: "最近文件",
                 btn_edit: "编辑 (Cmd/Ctrl+E)",
                 btn_preview: "预览 (Cmd/Ctrl+E)",
+                btn_open: "打开文件 (Cmd/Ctrl+O)",
+                btn_search: "搜索 (Cmd/Ctrl+F)",
                 btn_print: "打印 (Cmd/Ctrl+P)",
                 btn_update: "发现新版本",
+                search_placeholder: "搜索",
             },
             Lang::En => Strings {
-                drop_hint: "Drop a .md file here or press Cmd/Ctrl+O to open",
+                drop_hint: "Open a Markdown file",
                 cannot_read: "Cannot read file",
+                empty_subtitle: "Drop a .md file here, or continue from recent files.",
+                open_file: "Open File",
+                recent_title: "Recent",
                 btn_edit: "Edit (Cmd/Ctrl+E)",
                 btn_preview: "Preview (Cmd/Ctrl+E)",
+                btn_open: "Open File (Cmd/Ctrl+O)",
+                btn_search: "Find (Cmd/Ctrl+F)",
                 btn_print: "Print (Cmd/Ctrl+P)",
                 btn_update: "Update available",
+                search_placeholder: "Find",
             },
         }
     }
@@ -239,6 +257,7 @@ const UPDATE_CHECK_JS: &str = include_str!("../assets/enhance/update-check.js");
 const KATEX_JS: &str = include_str!("../assets/katex/katex.min.js");
 const KATEX_CSS: &str = include_str!("../assets/katex/katex.inline.css");
 const MERMAID_JS: &str = include_str!("../assets/mermaid/mermaid.min.js");
+const MAX_RECENT_FILES: usize = 8;
 
 fn html_escape_ta(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;")
@@ -248,6 +267,52 @@ fn html_escape_attr(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('"', "&quot;")
         .replace('<', "&lt;")
+}
+
+fn html_escape_text(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;")
+}
+
+fn recent_files_path() -> PathBuf {
+    config_dir().join("recent-files.txt")
+}
+
+fn load_recent_files() -> Vec<PathBuf> {
+    let Ok(txt) = fs::read_to_string(recent_files_path()) else {
+        return Vec::new();
+    };
+    let mut files = Vec::new();
+    for line in txt.lines() {
+        let path = PathBuf::from(line);
+        if line.is_empty() || !path.exists() || files.iter().any(|p| p == &path) {
+            continue;
+        }
+        files.push(path);
+        if files.len() == MAX_RECENT_FILES {
+            break;
+        }
+    }
+    files
+}
+
+fn save_recent_files(files: &[PathBuf]) {
+    let dir = config_dir();
+    let _ = fs::create_dir_all(&dir);
+    let body = files
+        .iter()
+        .take(MAX_RECENT_FILES)
+        .map(|p| p.to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let _ = fs::write(dir.join("recent-files.txt"), body);
+}
+
+fn remember_recent_file(files: &Arc<Mutex<Vec<PathBuf>>>, path: &Path) {
+    let mut recent = files.lock().unwrap();
+    recent.retain(|p| p != path);
+    recent.insert(0, path.to_path_buf());
+    recent.truncate(MAX_RECENT_FILES);
+    save_recent_files(&recent);
 }
 
 fn percent_encode_file_path(s: &str) -> String {
@@ -405,6 +470,41 @@ fn build_enhancer_bootstrap(flags: EnhanceFlags, loaded: EnhanceFlags) -> Vec<St
     scripts
 }
 
+fn empty_preview_html(s: &Strings, recent_files: &[PathBuf]) -> String {
+    let mut html = format!(
+        r#"<section class="empty-state"><div class="empty-mark">#</div><h1>{}</h1><p>{}</p><button class="empty-open" type="button" data-open-file>{}</button>"#,
+        html_escape_text(s.drop_hint),
+        html_escape_text(s.empty_subtitle),
+        html_escape_text(s.open_file)
+    );
+
+    if !recent_files.is_empty() {
+        html.push_str(&format!(
+            r#"<div class="recent"><h2>{}</h2><div class="recent-list">"#,
+            html_escape_text(s.recent_title)
+        ));
+        for (index, path) in recent_files.iter().take(MAX_RECENT_FILES).enumerate() {
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy())
+                .unwrap_or_else(|| path.to_string_lossy());
+            let parent = path
+                .parent()
+                .map(|p| p.to_string_lossy())
+                .unwrap_or_default();
+            html.push_str(&format!(
+                r#"<button class="recent-item" type="button" data-recent-index="{index}"><span class="recent-name">{}</span><span class="recent-path">{}</span></button>"#,
+                html_escape_text(&name),
+                html_escape_text(&parent)
+            ));
+        }
+        html.push_str("</div></div>");
+    }
+
+    html.push_str("</section>");
+    html
+}
+
 fn build_page(
     preview_html: &str,
     raw_md: &str,
@@ -474,9 +574,36 @@ body {{
 #preview a:hover {{ text-decoration: underline; }}
 #preview ul, #preview ol {{ padding-left: 2em; }}
 #preview input[type="checkbox"] {{ margin-right: 6px; }}
-.empty {{ display: flex; flex-direction: column; align-items: center; justify-content: center;
-  height: 60vh; color: #999; font-size: 18px; gap: 12px; }}
-.empty .icon {{ font-size: 48px; opacity: 0.4; }}
+	.empty-state {{
+	  min-height: calc(100vh - 48px);
+	  display: flex; flex-direction: column; align-items: center; justify-content: center;
+	  color: #6a737d; text-align: center; gap: 12px;
+	}}
+	.empty-mark {{
+	  width: 72px; height: 72px; display: grid; place-items: center;
+	  border-radius: 18px; background: #111; color: #fff;
+	  font-size: 46px; font-weight: 800; line-height: 1;
+	  box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+	}}
+	.empty-state h1 {{ margin: 12px 0 0; color: #1a1a1a; font-size: 28px; line-height: 1.2; }}
+	.empty-state p {{ margin: 0; max-width: 420px; font-size: 15px; }}
+	.empty-open {{
+	  margin-top: 10px; min-width: 132px; height: 42px; padding: 0 18px;
+	  border: 0; border-radius: 8px; background: #1a1a1a; color: #fff;
+	  font: inherit; font-weight: 600; cursor: pointer;
+	}}
+	.empty-open:hover {{ background: #000; }}
+	.recent {{ width: min(560px, 100%); margin-top: 22px; text-align: left; }}
+	.recent h2 {{ margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 0; color: #8c959f; text-transform: uppercase; }}
+	.recent-list {{ display: grid; gap: 6px; }}
+	.recent-item {{
+	  width: 100%; min-height: 48px; padding: 8px 10px; border: 1px solid #e5e7eb;
+	  border-radius: 8px; background: #fff; color: inherit; text-align: left; cursor: pointer;
+	  display: grid; gap: 1px;
+	}}
+	.recent-item:hover {{ background: #f6f8fa; border-color: #d0d7de; }}
+	.recent-name {{ color: #24292f; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+	.recent-path {{ color: #8c959f; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
 
 /* Floating toolbar (top-right) — hover-reveal, hidden in empty state */
 .toolbar {{
@@ -500,16 +627,40 @@ body.empty .toolbar {{ display: none !important; }}
 }}
 .toolbar button:hover {{ color: #000; background: rgba(255,255,255,1); }}
 .toolbar button[hidden] {{ display: none !important; }}
-.toolbar .update-btn {{ color: #0969da; }}
-@media (prefers-color-scheme: dark) {{
-  .toolbar button {{
-    background: rgba(40,40,40,0.8);
+	.toolbar .update-btn {{ color: #0969da; }}
+	.findbar {{
+	  position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+	  display: none; align-items: center; gap: 6px; z-index: 101;
+	  padding: 6px; border: 1px solid rgba(0,0,0,0.08); border-radius: 10px;
+	  background: rgba(255,255,255,0.96); box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+	  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+	}}
+	body.finding .findbar {{ display: flex; }}
+	.findbar input {{
+	  width: min(42vw, 320px); height: 30px; box-sizing: border-box; border: 0;
+	  outline: none; background: transparent; color: inherit; font: inherit;
+	}}
+	.findbar span {{ min-width: 14px; color: #8c959f; text-align: center; }}
+	.findbar button {{
+	  width: 30px; height: 30px; padding: 0; border: 0; border-radius: 7px;
+	  display: grid; place-items: center; color: #555; background: transparent; cursor: pointer;
+	}}
+	.findbar button:hover {{ background: #f0f0f0; color: #111; }}
+	@media (prefers-color-scheme: dark) {{
+	  .toolbar button {{
+	    background: rgba(40,40,40,0.8);
     border-color: rgba(255,255,255,0.1);
     color: #bbb;
-  }}
-  .toolbar button:hover {{ color: #fff; background: rgba(55,55,55,1); }}
-  .toolbar .update-btn {{ color: #6cb6ff; }}
-}}
+	  }}
+	  .toolbar button:hover {{ color: #fff; background: rgba(55,55,55,1); }}
+	  .toolbar .update-btn {{ color: #6cb6ff; }}
+	  .empty-mark {{ background: #f4f4f4; color: #111; }}
+	  .empty-state h1, .recent-name {{ color: #f0f0f0; }}
+	  .recent-item {{ background: #242424; border-color: #333; }}
+	  .recent-item:hover {{ background: #2d2d2d; border-color: #444; }}
+	  .findbar {{ background: rgba(34,34,34,0.96); border-color: rgba(255,255,255,0.1); }}
+	  .findbar button:hover {{ background: #333; color: #fff; }}
+	}}
 
 /* Source editor textarea — height is auto-grown by JS to match content,
    so the page (html) owns the only vertical scrollbar. */
@@ -533,33 +684,59 @@ body.editing #btn-print {{ display: none; }}
   #preview {{ display: block !important; }}
   #app {{ max-width: none; padding: 0; }}
 }}
-</style></head><body class="{body_class}">
-<div class="toolbar">
-  <button id="btn-toggle" title="{btn_edit}" aria-label="{btn_edit}"></button>
-  <button id="btn-print" title="{btn_print}" aria-label="{btn_print}"></button>
-  <button id="btn-update" class="update-btn" hidden title="{btn_update}" aria-label="{btn_update}"></button>
-</div>
-<div id="app">
+	</style></head><body class="{body_class}">
+	<div class="toolbar">
+	  <button id="btn-open" title="{btn_open}" aria-label="{btn_open}"></button>
+	  <button id="btn-search" title="{btn_search}" aria-label="{btn_search}"></button>
+	  <button id="btn-toggle" title="{btn_edit}" aria-label="{btn_edit}"></button>
+	  <button id="btn-print" title="{btn_print}" aria-label="{btn_print}"></button>
+	  <button id="btn-update" class="update-btn" hidden title="{btn_update}" aria-label="{btn_update}"></button>
+	</div>
+	<div class="findbar" role="search">
+	  <input id="find-input" type="search" placeholder="{search_placeholder}" aria-label="{search_placeholder}">
+	  <span id="find-state"></span>
+	  <button id="find-prev" title="Previous" aria-label="Previous"></button>
+	  <button id="find-next" title="Next" aria-label="Next"></button>
+	  <button id="find-close" title="Close" aria-label="Close"></button>
+	</div>
+	<div id="app">
   <div id="preview">{preview_html}</div>
   <textarea id="editor" spellcheck="false">{raw_md_escaped}</textarea>
 </div>
 <script>
 (function(){{
-  var ICON_EDIT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>';
-  var ICON_VIEW = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
-  var ICON_PRINT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>';
-  var ICON_UPDATE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>';
-  var L_EDIT = '{btn_edit}', L_VIEW = '{btn_preview}';
+	  var ICON_EDIT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>';
+	  var ICON_VIEW = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+	  var ICON_OPEN = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 13v8"/><path d="M4 14.9A7 7 0 1 1 15.7 8h1.8a4.5 4.5 0 0 1 2.5 8.2"/><path d="m8 17 4-4 4 4"/></svg>';
+	  var ICON_SEARCH = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>';
+	  var ICON_PRINT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>';
+	  var ICON_UPDATE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>';
+	  var ICON_UP = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>';
+	  var ICON_DOWN = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+	  var ICON_CLOSE = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+	  var L_EDIT = '{btn_edit}', L_VIEW = '{btn_preview}';
 
-  var btnToggle = document.getElementById('btn-toggle');
-  var btnPrint = document.getElementById('btn-print');
-  var btnUpdate = document.getElementById('btn-update');
-  var ta = document.getElementById('editor');
-  var dirty = false;
+	  var btnOpen = document.getElementById('btn-open');
+	  var btnSearch = document.getElementById('btn-search');
+	  var btnToggle = document.getElementById('btn-toggle');
+	  var btnPrint = document.getElementById('btn-print');
+	  var btnUpdate = document.getElementById('btn-update');
+	  var findInput = document.getElementById('find-input');
+	  var findState = document.getElementById('find-state');
+	  var findPrev = document.getElementById('find-prev');
+	  var findNext = document.getElementById('find-next');
+	  var findClose = document.getElementById('find-close');
+	  var ta = document.getElementById('editor');
+	  var dirty = false;
 
-  btnToggle.innerHTML = ICON_EDIT;
-  btnPrint.innerHTML = ICON_PRINT;
-  btnUpdate.innerHTML = ICON_UPDATE;
+	  btnOpen.innerHTML = ICON_OPEN;
+	  btnSearch.innerHTML = ICON_SEARCH;
+	  btnToggle.innerHTML = ICON_EDIT;
+	  btnPrint.innerHTML = ICON_PRINT;
+	  btnUpdate.innerHTML = ICON_UPDATE;
+	  findPrev.innerHTML = ICON_UP;
+	  findNext.innerHTML = ICON_DOWN;
+	  findClose.innerHTML = ICON_CLOSE;
 
   function inEdit() {{ return document.body.classList.contains('editing'); }}
   document.addEventListener('contextmenu', function(e) {{
@@ -570,10 +747,33 @@ body.editing #btn-print {{ display: none; }}
     dirty = d;
     window.ipc.postMessage(d ? 'dirty:1' : 'dirty:0');
   }}
-  function save() {{
-    window.ipc.postMessage('save:' + ta.value);
-    setDirty(false);
-  }}
+	  function save() {{
+	    window.ipc.postMessage('save:' + ta.value);
+	    setDirty(false);
+	  }}
+	  function openFile() {{
+	    if (inEdit()) leaveEdit();
+	    window.ipc.postMessage('open');
+	  }}
+	  function showFind() {{
+	    if (document.body.classList.contains('empty')) return;
+	    if (inEdit()) leaveEdit();
+	    document.body.classList.add('finding');
+	    setTimeout(function(){{ findInput.focus(); findInput.select(); }}, 0);
+	  }}
+	  function hideFind() {{
+	    document.body.classList.remove('finding');
+	    findInput.value = '';
+	    findState.textContent = '';
+	    var sel = window.getSelection && window.getSelection();
+	    if (sel && sel.removeAllRanges) sel.removeAllRanges();
+	  }}
+	  function runFind(backward) {{
+	    var q = findInput.value;
+	    if (!q) {{ findState.textContent = ''; return; }}
+	    var found = window.find ? window.find(q, false, !!backward, true, false, false, false) : false;
+	    findState.textContent = found ? '' : '0';
+	  }}
   // Grow textarea height to its content so the page (html) owns the sole
   // scrollbar; avoids the double-scrollbar you see if textarea keeps its
   // own internal scroll.
@@ -601,9 +801,28 @@ body.editing #btn-print {{ display: none; }}
     btnToggle.setAttribute('aria-label', L_EDIT);
   }}
 
-  btnToggle.addEventListener('click', function() {{
-    if (inEdit()) leaveEdit(); else enterEdit();
-  }});
+	  btnOpen.addEventListener('click', openFile);
+	  btnSearch.addEventListener('click', showFind);
+	  document.querySelectorAll('[data-open-file]').forEach(function(btn) {{
+	    btn.addEventListener('click', openFile);
+	  }});
+	  document.querySelectorAll('[data-recent-index]').forEach(function(btn) {{
+	    btn.addEventListener('click', function() {{
+	      window.ipc.postMessage('open-recent:' + btn.getAttribute('data-recent-index'));
+	    }});
+	  }});
+	  findInput.addEventListener('input', function() {{ runFind(false); }});
+	  findInput.addEventListener('keydown', function(e) {{
+	    if (e.key === 'Enter') {{ e.preventDefault(); runFind(e.shiftKey); }}
+	    if (e.key === 'Escape') {{ e.preventDefault(); hideFind(); }}
+	  }});
+	  findPrev.addEventListener('click', function() {{ runFind(true); }});
+	  findNext.addEventListener('click', function() {{ runFind(false); }});
+	  findClose.addEventListener('click', hideFind);
+
+	  btnToggle.addEventListener('click', function() {{
+	    if (inEdit()) leaveEdit(); else enterEdit();
+	  }});
   btnPrint.addEventListener('click', function() {{
     if (inEdit()) leaveEdit();
     // Route through Rust: WKWebView ignores window.print(); wry's
@@ -619,11 +838,16 @@ body.editing #btn-print {{ display: none; }}
       if (!inEdit()) window.ipc.postMessage('refresh');
       return;
     }}
-    if ((e.metaKey || e.ctrlKey) && (e.key === 'o' || e.key === 'O')) {{
-      e.preventDefault();
-      window.ipc.postMessage('open');
-      return;
-    }}
+	    if ((e.metaKey || e.ctrlKey) && (e.key === 'o' || e.key === 'O')) {{
+	      e.preventDefault();
+	      openFile();
+	      return;
+	    }}
+	    if ((e.metaKey || e.ctrlKey) && (e.key === 'f' || e.key === 'F')) {{
+	      e.preventDefault();
+	      showFind();
+	      return;
+	    }}
     if ((e.metaKey || e.ctrlKey) && (e.key === 'e' || e.key === 'E')) {{
       e.preventDefault();
       if (inEdit()) leaveEdit(); else enterEdit();
@@ -639,7 +863,8 @@ body.editing #btn-print {{ display: none; }}
       setTimeout(function(){{ window.ipc.postMessage('print'); }}, 0);
       return;
     }}
-    if (e.key === 'Escape' && inEdit()) {{ leaveEdit(); }}
+	    if (e.key === 'Escape' && document.body.classList.contains('finding')) {{ hideFind(); return; }}
+	    if (e.key === 'Escape' && inEdit()) {{ leaveEdit(); }}
   }});
 
   // Called by Rust after a save (only preview is refreshed) or after an
@@ -664,9 +889,10 @@ body.editing #btn-print {{ display: none; }}
     if (baseHref) base.setAttribute('href', baseHref);
     else base.removeAttribute('href');
   }};
-  window.__setContent = function(previewHtml, rawMd, baseHref, needsMath, needsMermaid) {{
-    document.body.classList.remove('empty');
-    window.__setBaseHref(baseHref);
+	  window.__setContent = function(previewHtml, rawMd, baseHref, needsMath, needsMermaid) {{
+	    document.body.classList.remove('empty');
+	    hideFind();
+	    window.__setBaseHref(baseHref);
     window.__setPreview(previewHtml, needsMath, needsMermaid);
     if (!inEdit() || !dirty) {{
       ta.value = rawMd;
@@ -705,10 +931,13 @@ window.__mdPreviewInstallUpdateCheck({{
         base_tag = base_tag,
         preview_html = preview_html,
         raw_md_escaped = html_escape_ta(raw_md),
+        btn_open = s.btn_open,
+        btn_search = s.btn_search,
         btn_edit = s.btn_edit,
         btn_preview = s.btn_preview,
         btn_print = s.btn_print,
         btn_update = s.btn_update,
+        search_placeholder = s.search_placeholder,
         btn_update_js = escape_js(s.btn_update),
         app_version = env!("CARGO_PKG_VERSION"),
         body_class = body_class,
@@ -800,6 +1029,22 @@ mod tests {
 
         assert!(page.contains("document.addEventListener('contextmenu'"));
         assert!(page.contains("window.ipc.postMessage('refresh')"));
+        assert!(page.contains("id=\"btn-open\""));
+        assert!(page.contains("id=\"btn-search\""));
+        assert!(page.contains("window.ipc.postMessage('open')"));
+        assert!(page.contains("Cmd/Ctrl+F"));
+    }
+
+    #[test]
+    fn empty_state_exposes_open_and_recent_files() {
+        let strings = Strings::for_lang(Lang::En);
+        let recent = vec![PathBuf::from("/tmp/example.md")];
+        let html = empty_preview_html(&strings, &recent);
+
+        assert!(html.contains("Open File"));
+        assert!(html.contains("Recent"));
+        assert!(html.contains("example.md"));
+        assert!(html.contains("data-recent-index=\"0\""));
     }
 
     #[test]
@@ -1097,14 +1342,20 @@ fn main() {
         .expect("failed to build window");
     bench_log("window_built");
 
+    let recent_files: Arc<Mutex<Vec<PathBuf>>> = Arc::new(Mutex::new(load_recent_files()));
+    if let Some(path) = &initial_file {
+        remember_recent_file(&recent_files, path);
+    }
+
     let mut initial_flags = EnhanceFlags::default();
     let initial_page = match &initial_file {
         Some(path) => fs::read_to_string(path).ok().map_or_else(
             || {
                 build_page(
                     &format!(
-                        r#"<div class="empty"><div class="icon">#</div>{}</div>"#,
-                        strings.cannot_read
+                        r#"<section class="empty-state"><div class="empty-mark">#</div><h1>{}</h1><button class="empty-open" type="button" data-open-file>{}</button></section>"#,
+                        html_escape_text(strings.cannot_read),
+                        html_escape_text(strings.open_file)
                     ),
                     "",
                     None,
@@ -1128,10 +1379,7 @@ fn main() {
             },
         ),
         None => build_page(
-            &format!(
-                r#"<div class="empty"><div class="icon">#</div>{}</div>"#,
-                strings.drop_hint
-            ),
+            &empty_preview_html(&strings, &recent_files.lock().unwrap()),
             "",
             None,
             EnhanceFlags::default(),
@@ -1144,6 +1392,7 @@ fn main() {
     let enhance_flags: Arc<Mutex<EnhanceFlags>> = Arc::new(Mutex::new(initial_flags));
     let last_self_write: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
     let file_path_for_ipc = Arc::clone(&file_path);
+    let recent_files_for_ipc = Arc::clone(&recent_files);
     let last_self_write_for_ipc = Arc::clone(&last_self_write);
     let proxy_for_ipc = proxy.clone();
 
@@ -1187,6 +1436,14 @@ fn main() {
                 {
                     *file_path_for_ipc.lock().unwrap() = Some(path);
                     let _ = proxy_for_ipc.send_event(UserEvent::FileChanged);
+                }
+            } else if let Some(index) = body.strip_prefix("open-recent:") {
+                if let Ok(index) = index.parse::<usize>() {
+                    let path = recent_files_for_ipc.lock().unwrap().get(index).cloned();
+                    if let Some(path) = path {
+                        *file_path_for_ipc.lock().unwrap() = Some(path);
+                        let _ = proxy_for_ipc.send_event(UserEvent::FileChanged);
+                    }
                 }
             } else if body == "dirty:1" {
                 let _ = proxy_for_ipc.send_event(UserEvent::DirtyChanged(true));
@@ -1299,6 +1556,7 @@ fn main() {
                 let fp = file_path_for_event.lock().unwrap().clone();
                 if let Some(ref path) = fp {
                     if let Ok(raw) = fs::read_to_string(path) {
+                        remember_recent_file(&recent_files, path);
                         let html = md_to_html(&raw);
                         let base_href = base_href_for_file(path).unwrap_or_default();
                         let flags = enhance_flags_for(&raw);

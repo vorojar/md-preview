@@ -1,0 +1,51 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace = "app.mdpreview.mobile"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "app.mdpreview.mobile"
+        minSdk = 26
+        targetSdk = 36
+        versionCode = 7
+        versionName = "1.0.6"
+    }
+
+    signingConfigs {
+        release {
+            def keystorePath = System.getenv("MD_PREVIEW_ANDROID_KEYSTORE")
+            def keystorePassword = System.getenv("MD_PREVIEW_ANDROID_KEYSTORE_PASSWORD")
+            def keyAliasValue = System.getenv("MD_PREVIEW_ANDROID_KEY_ALIAS")
+            def keyPasswordValue = System.getenv("MD_PREVIEW_ANDROID_KEY_PASSWORD")
+            if (keystorePath && keystorePassword && keyAliasValue && keyPasswordValue) {
+                storeFile = file(keystorePath)
+                storePassword = keystorePassword
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (System.getenv("MD_PREVIEW_ANDROID_KEYSTORE")) {
+                signingConfig = signingConfigs.release
+            }
+            minifyEnabled = false
+            shrinkResources = false
+        }
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs = ["../../shared"]
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ["-Xlint:deprecation"]
+}
