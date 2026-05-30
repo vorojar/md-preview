@@ -320,6 +320,7 @@ public final class MainActivity extends Activity {
         PrintAttributes attributes = new PrintAttributes.Builder()
             .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
             .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
+            .setMinMargins(new PrintAttributes.Margins(500, 500, 500, 500))
             .build();
         printManager.print(displayedTitle(), adapter, attributes);
     }

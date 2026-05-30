@@ -358,6 +358,10 @@ body.empty #preview {
   }
 }
 
+@page {
+  margin: 12mm;
+}
+
 @media print {
   :root {
     --bg: #ffffff;

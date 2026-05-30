@@ -108,7 +108,9 @@ final class PreviewViewController: UIViewController {
         info.outputType = .general
         info.jobName = webView.title?.replacingOccurrences(of: " - MD Preview", with: "") ?? "MD Preview"
         controller.printInfo = info
-        controller.printFormatter = webView.viewPrintFormatter()
+        let formatter = webView.viewPrintFormatter()
+        formatter.perPageContentInsets = UIEdgeInsets(top: 36, left: 36, bottom: 36, right: 36)
+        controller.printFormatter = formatter
         controller.present(animated: true)
     }
 

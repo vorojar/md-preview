@@ -1,10 +1,12 @@
 import { createRequire } from 'module';
+import { readFile } from 'node:fs/promises';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
 const root = new URL('../..', import.meta.url);
 const preview = new URL('mobile/shared/preview.html', root).href;
+const previewCss = await readFile(new URL('mobile/shared/mobile-preview.css', root), 'utf8');
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({
   viewport: { width: 390, height: 844 },
@@ -90,7 +92,8 @@ if (Math.abs(beforeSearchTop.y - searchingTop.y) > 1 ||
 }
 if (result.printTopbarDisplay !== 'none' ||
     result.printSearchDisplay !== 'none' ||
-    result.printPreviewDisplay === 'none') {
+    result.printPreviewDisplay === 'none' ||
+    !/@page\s*{\s*margin:\s*12mm;\s*}/.test(previewCss)) {
   throw new Error(`Print stylesheet check failed: ${JSON.stringify(result)}`);
 }
 if (result.bad) {
