@@ -17,6 +17,10 @@ jobs:
       - name: Build (release)
         run: cargo build --release
 
+      - name: Fetch WinSparkle
+        shell: bash
+        run: scripts/fetch-winsparkle.sh
+
       - name: Verify GUI subsystem (no console window)
         shell: pwsh
         run: |
@@ -42,10 +46,29 @@ jobs:
           Write-Host "PNG signatures found in exe: $count (expected >= 6)"
           if ($count -lt 6) { throw "icon resource not embedded (found $count PNG signatures)" }
 
+      - name: Build installer
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item target/release/md-preview.exe dist/
+          Copy-Item target/winsparkle/WinSparkle-0.9.3/x64/Release/WinSparkle.dll dist/
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "([^"]+)"').Matches[0].Groups[1].Value
+          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" "-DVERSION=$version" "windows\installer.nsi"
+          if (-not (Test-Path "dist/MD-Preview-windows-x64-Setup.exe")) {
+            throw "installer missing"
+          }
+          if (-not (Test-Path "dist/WinSparkle.dll")) {
+            throw "WinSparkle.dll missing from dist"
+          }
+
       - uses: actions/upload-artifact@v4
         with:
           name: md-preview-windows-x64
-          path: target/release/md-preview.exe
+          path: |
+            target/release/md-preview.exe
+            dist/WinSparkle.dll
+            dist/MD-Preview-windows-x64-Setup.exe
 
   build-macos:
     runs-on: macos-latest

@@ -40,7 +40,8 @@ AI 编程工具现在会生成大量 Markdown：`README.md`、`plan.md`、任务
 | 平台 | 包名 | 说明 |
 |---|---|---|
 | macOS | `MD-Preview-macOS-universal.dmg` | Apple Silicon 和 Intel 通用。Release 版本会签名、公证。 |
-| Windows | `MD-Preview-windows-x64.zip` | GUI 可执行文件，已内嵌应用图标。 |
+| Windows | `MD-Preview-windows-x64-Setup.exe` | 当前用户安装器，包含开始菜单入口、Markdown 打开方式注册和 WinSparkle 应用内更新。 |
+| Windows portable | `MD-Preview-windows-x64.zip` | 便携 ZIP，包含 `md-preview.exe` 和 `WinSparkle.dll`，适合手动使用。 |
 | Linux | `MD-Preview-linux-x64.tar.gz` | 需要系统 WebKitGTK 运行时。 |
 | Android | `MD-Preview-Android.apk` | 原生 Android 预览器，可从文件管理器、微信、企业微信和分享面板打开 Markdown。 |
 
@@ -96,7 +97,7 @@ Android 上，MD Preview 会出现在 Markdown 文件的“打开方式”和分
 | GFM 支持 | 表格、任务列表、删除线、heading attributes、标题锚点。 |
 | 外链跳转 | `http`、`https`、`mailto` 链接交给系统浏览器或邮件客户端。 |
 | 窗口恢复 | 下次启动恢复上次位置和大小；断开显示器后自动回到可见屏幕。 |
-| 更新 | 首屏之后检查桌面版 GitHub Releases。macOS 使用 Sparkle 做签名校验和应用内更新；Windows / Linux 打开对应 release 下载。 |
+| 更新 | 首屏之后检查桌面版 GitHub Releases。macOS 使用 Sparkle、Windows 使用 WinSparkle 做签名校验和应用内更新；Linux 打开对应 release 下载。 |
 
 ## 快捷键
 
@@ -137,7 +138,7 @@ Release profile 使用面向体积的优化、LTO、单 codegen unit、符号裁
 
 ## 隐私
 
-MD Preview 没有账号、没有 telemetry、没有 analytics。你的 Markdown 文件留在本地磁盘，渲染也在本机完成。桌面应用自身唯一的网络请求是首屏之后的可选更新检测；失败会静默忽略，不影响启动和预览。macOS 更新由 Sparkle 使用应用内置的 EdDSA 公钥校验。
+MD Preview 没有账号、没有 telemetry、没有 analytics。你的 Markdown 文件留在本地磁盘，渲染也在本机完成。桌面应用自身唯一的网络请求是首屏之后的可选更新检测；失败会静默忽略，不影响启动和预览。macOS 更新由 Sparkle 校验，Windows 更新由 WinSparkle 校验，两者都使用应用内置的 EdDSA 公钥。
 
 ## 常见问题
 
@@ -165,7 +166,7 @@ cargo test
 cargo build --release
 ```
 
-CI 会构建 macOS、Windows、Linux。推送匹配 `v*` 的 tag 后，GitHub Actions 会产出 macOS DMG、Windows ZIP 和 Linux tarball。
+CI 会构建 macOS、Windows、Linux。推送匹配 `v*` 的 tag 后，GitHub Actions 会产出 macOS DMG、Windows 安装器、Windows ZIP 和 Linux tarball。
 
 ## 许可证
 

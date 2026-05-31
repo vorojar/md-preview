@@ -7,6 +7,7 @@ use notify::{Event, RecursiveMode, Watcher};
 use pulldown_cmark::{html, Options, Parser};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tao::dpi::{LogicalPosition, LogicalSize};
@@ -18,6 +19,7 @@ use wry::WebViewBuilder;
 const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.ico");
 const DEFAULT_W: f64 = 900.0;
 const DEFAULT_H: f64 = 700.0;
+static APP_DIRTY: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug)]
 enum UserEvent {
@@ -966,7 +968,7 @@ window.__mdPreviewInstallUpdateCheck({{
         search_placeholder = s.search_placeholder,
         btn_update_js = escape_js(s.btn_update),
         app_version = update_current_version(),
-        native_updater = cfg!(target_os = "macos"),
+        native_updater = cfg!(any(target_os = "macos", target_os = "windows")),
         body_class = body_class,
         needs_math = flags.math,
         needs_mermaid = flags.mermaid,
@@ -1422,12 +1424,183 @@ mod macos_updater {
     }
 }
 
+#[cfg(target_os = "windows")]
+mod windows_updater {
+    use super::APP_DIRTY;
+    use std::ffi::{c_char, c_int, c_void, CString, OsStr};
+    use std::os::windows::ffi::OsStrExt;
+    use std::path::PathBuf;
+    use std::sync::atomic::Ordering;
+    use std::sync::OnceLock;
+
+    const WINSPARKLE_FEED_URL: &str =
+        "https://github.com/vorojar/md-preview/releases/latest/download/appcast-windows.xml";
+    const WINSPARKLE_PUBLIC_KEY: &str = "fstkwGnjUNSrHFW4oq3LpBMQ1dhh9lQtax5K7nI0uoQ=";
+
+    type SetAppcastUrl = unsafe extern "C" fn(*const c_char);
+    type SetEddsaPublicKey = unsafe extern "C" fn(*const c_char) -> c_int;
+    type SetAppDetails = unsafe extern "C" fn(*const u16, *const u16, *const u16);
+    type SetRegistryPath = unsafe extern "C" fn(*const c_char);
+    type SetAutomaticCheckForUpdates = unsafe extern "C" fn(c_int);
+    type SetUpdateCheckInterval = unsafe extern "C" fn(c_int);
+    type SetCanShutdownCallback = unsafe extern "C" fn(unsafe extern "C" fn() -> c_int);
+    type SetShutdownRequestCallback = unsafe extern "C" fn(unsafe extern "C" fn());
+    type Init = unsafe extern "C" fn();
+    type CheckUpdateWithUi = unsafe extern "C" fn();
+
+    struct WinSparkle {
+        _handle: usize,
+        check_update_with_ui: CheckUpdateWithUi,
+    }
+
+    unsafe impl Send for WinSparkle {}
+    unsafe impl Sync for WinSparkle {}
+
+    static INSTANCE: OnceLock<WinSparkle> = OnceLock::new();
+
+    unsafe extern "system" {
+        fn LoadLibraryW(lp_lib_file_name: *const u16) -> *mut c_void;
+        fn GetProcAddress(h_module: *mut c_void, lp_proc_name: *const c_char) -> *mut c_void;
+    }
+
+    unsafe extern "C" fn can_shutdown_for_update() -> c_int {
+        if APP_DIRTY.load(Ordering::SeqCst) {
+            0
+        } else {
+            1
+        }
+    }
+
+    unsafe extern "C" fn shutdown_for_update() {
+        std::process::exit(0);
+    }
+
+    fn wide_null(value: impl AsRef<OsStr>) -> Vec<u16> {
+        value.as_ref().encode_wide().chain(Some(0)).collect()
+    }
+
+    fn bundled_dll_path() -> Option<PathBuf> {
+        let exe = std::env::current_exe().ok()?;
+        let path = exe.parent()?.join("WinSparkle.dll");
+        path.exists().then_some(path)
+    }
+
+    unsafe fn load_library() -> Option<*mut c_void> {
+        let dll = bundled_dll_path()
+            .map(|path| wide_null(path.as_os_str()))
+            .unwrap_or_else(|| wide_null("WinSparkle.dll"));
+        let handle = LoadLibraryW(dll.as_ptr());
+        (!handle.is_null()).then_some(handle)
+    }
+
+    unsafe fn symbol(handle: *mut c_void, name: &'static [u8]) -> Option<*mut c_void> {
+        let ptr = GetProcAddress(handle, name.as_ptr().cast());
+        (!ptr.is_null()).then_some(ptr)
+    }
+
+    unsafe fn optional_symbol(handle: *mut c_void, name: &'static [u8]) -> Option<*mut c_void> {
+        let ptr = GetProcAddress(handle, name.as_ptr().cast());
+        (!ptr.is_null()).then_some(ptr)
+    }
+
+    pub fn start() -> bool {
+        if INSTANCE.get().is_some() {
+            return true;
+        }
+
+        let instance = unsafe {
+            (|| -> Option<WinSparkle> {
+                let handle = load_library()?;
+                let set_appcast_url: SetAppcastUrl =
+                    std::mem::transmute(symbol(handle, b"win_sparkle_set_appcast_url\0")?);
+                let set_eddsa_public_key: SetEddsaPublicKey =
+                    std::mem::transmute(symbol(handle, b"win_sparkle_set_eddsa_public_key\0")?);
+                let set_app_details: SetAppDetails =
+                    std::mem::transmute(symbol(handle, b"win_sparkle_set_app_details\0")?);
+                let set_registry_path: SetRegistryPath =
+                    std::mem::transmute(symbol(handle, b"win_sparkle_set_registry_path\0")?);
+                let set_automatic_check_for_updates: SetAutomaticCheckForUpdates =
+                    std::mem::transmute(symbol(
+                        handle,
+                        b"win_sparkle_set_automatic_check_for_updates\0",
+                    )?);
+                let set_update_check_interval: SetUpdateCheckInterval = std::mem::transmute(
+                    symbol(handle, b"win_sparkle_set_update_check_interval\0")?,
+                );
+                let init: Init = std::mem::transmute(symbol(handle, b"win_sparkle_init\0")?);
+                let check_update_with_ui: CheckUpdateWithUi =
+                    std::mem::transmute(symbol(handle, b"win_sparkle_check_update_with_ui\0")?);
+
+                let feed_url = CString::new(WINSPARKLE_FEED_URL).ok()?;
+                let public_key = CString::new(WINSPARKLE_PUBLIC_KEY).ok()?;
+                let registry_path = CString::new("Software\\MD Preview\\WinSparkle").ok()?;
+                let company = wide_null("vorojar");
+                let app_name = wide_null("MD Preview");
+                let app_version = wide_null(env!("CARGO_PKG_VERSION"));
+
+                set_appcast_url(feed_url.as_ptr());
+                if set_eddsa_public_key(public_key.as_ptr()) != 1 {
+                    return None;
+                }
+                set_app_details(company.as_ptr(), app_name.as_ptr(), app_version.as_ptr());
+                set_registry_path(registry_path.as_ptr());
+                set_automatic_check_for_updates(1);
+                set_update_check_interval(24 * 60 * 60);
+
+                if let Some(ptr) =
+                    optional_symbol(handle, b"win_sparkle_set_can_shutdown_callback\0")
+                {
+                    let set_can_shutdown: SetCanShutdownCallback = std::mem::transmute(ptr);
+                    set_can_shutdown(can_shutdown_for_update);
+                }
+                if let Some(ptr) =
+                    optional_symbol(handle, b"win_sparkle_set_shutdown_request_callback\0")
+                {
+                    let set_shutdown_request: SetShutdownRequestCallback = std::mem::transmute(ptr);
+                    set_shutdown_request(shutdown_for_update);
+                }
+
+                init();
+
+                Some(WinSparkle {
+                    _handle: handle as usize,
+                    check_update_with_ui,
+                })
+            })()
+        };
+        let Some(instance) = instance else {
+            return false;
+        };
+
+        let _ = INSTANCE.set(instance);
+        true
+    }
+
+    pub fn check_for_updates() -> bool {
+        if !start() {
+            return false;
+        }
+        let Some(instance) = INSTANCE.get() else {
+            return false;
+        };
+        unsafe {
+            (instance.check_update_with_ui)();
+        }
+        true
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn start_native_updater() -> bool {
     macos_updater::start()
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+fn start_native_updater() -> bool {
+    windows_updater::start()
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn start_native_updater() -> bool {
     false
 }
@@ -1437,7 +1610,12 @@ fn check_native_updates() -> bool {
     macos_updater::check_for_updates()
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+fn check_native_updates() -> bool {
+    windows_updater::check_for_updates()
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn check_native_updates() -> bool {
     false
 }
@@ -1483,10 +1661,6 @@ fn main() {
 
     let event_loop: EventLoop<UserEvent> = EventLoopBuilder::with_user_event().build();
     install_macos_edit_menu();
-    let native_updater_available = start_native_updater();
-    if bench && native_updater_available {
-        bench_log("native_updater_started");
-    }
     let proxy = event_loop.create_proxy();
 
     let title = initial_file
@@ -1510,6 +1684,10 @@ fn main() {
         .build(&event_loop)
         .expect("failed to build window");
     bench_log("window_built");
+    let native_updater_available = start_native_updater();
+    if bench && native_updater_available {
+        bench_log("native_updater_started");
+    }
 
     let recent_files: Arc<Mutex<Vec<PathBuf>>> = Arc::new(Mutex::new(load_recent_files()));
     if let Some(path) = &initial_file {
@@ -1811,6 +1989,7 @@ fn main() {
                 }
             }
             TaoEvent::UserEvent(UserEvent::DirtyChanged(dirty)) => {
+                APP_DIRTY.store(dirty, Ordering::SeqCst);
                 let fp = file_path_for_event.lock().unwrap().clone();
                 let name = fp
                     .as_ref()

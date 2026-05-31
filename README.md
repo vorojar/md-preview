@@ -40,7 +40,8 @@ Get the latest build from [GitHub Releases](https://github.com/vorojar/md-previe
 | Platform | Package | Notes |
 |---|---|---|
 | macOS | `MD-Preview-macOS-universal.dmg` | Universal app for Apple Silicon and Intel. Releases are signed and notarized. |
-| Windows | `MD-Preview-windows-x64.zip` | Includes a GUI executable with the app icon embedded. |
+| Windows | `MD-Preview-windows-x64-Setup.exe` | Per-user installer with Start Menu shortcut, Markdown open-with registration, and WinSparkle in-app updates. |
+| Windows portable | `MD-Preview-windows-x64.zip` | ZIP package with `md-preview.exe` and `WinSparkle.dll` for manual/portable use. |
 | Linux | `MD-Preview-linux-x64.tar.gz` | Requires the system WebKitGTK runtime. |
 | Android | `MD-Preview-Android.apk` | Native Android viewer for opening Markdown files from Files, WeChat, WeCom, and share sheets. |
 
@@ -96,7 +97,7 @@ On Android, MD Preview appears in the system "Open with" and share flows for Mar
 | GitHub-flavored Markdown | Tables, task lists, strikethrough, heading attributes, and anchors. |
 | External links | `http`, `https`, and `mailto` links open in the system browser or mail app. |
 | Window restore | Last size and position are restored when still visible on a connected monitor. |
-| Updates | After first paint, MD Preview checks desktop GitHub Releases. macOS uses Sparkle for signed in-app updates; Windows and Linux open the matching release download. |
+| Updates | After first paint, MD Preview checks desktop GitHub Releases. macOS uses Sparkle and Windows uses WinSparkle for signed in-app updates; Linux opens the matching release download. |
 
 ## Keyboard Shortcuts
 
@@ -137,7 +138,7 @@ The release profile enables size-oriented optimization, LTO, one codegen unit, s
 
 ## Privacy
 
-MD Preview has no accounts, no telemetry, and no analytics. Your Markdown files stay on disk. Rendering happens locally. The only network request made by the desktop app itself is the optional update check after the first paint; failed checks are ignored and never block startup. macOS updates are verified by Sparkle using the app's embedded EdDSA public key.
+MD Preview has no accounts, no telemetry, and no analytics. Your Markdown files stay on disk. Rendering happens locally. The only network request made by the desktop app itself is the optional update check after the first paint; failed checks are ignored and never block startup. macOS updates are verified by Sparkle and Windows updates are verified by WinSparkle using the app's embedded EdDSA public key.
 
 ## Troubleshooting
 
@@ -165,7 +166,7 @@ cargo test
 cargo build --release
 ```
 
-CI builds macOS, Windows, and Linux. Release tags matching `v*` produce a macOS DMG, Windows ZIP, and Linux tarball through GitHub Actions.
+CI builds macOS, Windows, and Linux. Release tags matching `v*` produce a macOS DMG, Windows installer, Windows ZIP, and Linux tarball through GitHub Actions.
 
 ## License
 

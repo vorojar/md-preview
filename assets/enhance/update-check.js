@@ -58,7 +58,7 @@
       return /macos.*\.dmg$/i;
     }
     if (platform.indexOf('win') >= 0 || ua.indexOf('windows') >= 0) {
-      return /windows.*\.zip$/i;
+      return /windows.*setup.*\.exe$/i;
     }
     if (platform.indexOf('linux') >= 0 || ua.indexOf('linux') >= 0) {
       return /linux.*\.tar\.gz$/i;

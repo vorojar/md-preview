@@ -12,8 +12,9 @@
 #   3. signs + notarizes + staples (both inner .app AND the dmg) via the
 #      remote signing machine at yihafo1109@192.168.3.207
 #   4. uploads the signed dmg back to the Release, overwriting the unsigned one
-#   5. generates and uploads Sparkle appcast.xml for in-app self-update
-#   6. drops the stapled .app into target/ and /Applications if that copy exists
+#   5. generates and uploads Sparkle appcast.xml for macOS in-app self-update
+#   6. generates and uploads appcast-windows.xml for WinSparkle self-update
+#   7. drops the stapled .app into target/ and /Applications if that copy exists
 #
 # Expected end state: the Release's macOS dmg and the .app inside it both
 # pass `stapler validate`, `codesign --verify`, and `spctl --assess` —
@@ -38,6 +39,7 @@ trap notify_if_failed EXIT
 
 REPO="vorojar/md-preview"
 ASSET="MD-Preview-macOS-universal.dmg"
+WINDOWS_ASSET="MD-Preview-windows-x64-Setup.exe"
 SIGN_SCRIPT="$HOME/.claude/skills/remote-mac-sign/sign_remote.sh"
 
 if [ ! -x "$SIGN_SCRIPT" ]; then
@@ -52,7 +54,7 @@ trap 'rm -rf "$WORK"' EXIT
 # waiter doesn't see an old DONE and think this one finished instantly.
 rm -f "$REPO_ROOT/target/.release-sign.done.$TAG" 2>/dev/null || true
 
-echo "[1/5] waiting for $TAG Release to expose $ASSET (poll 15s, up to 15min)..."
+echo "[1/7] waiting for $TAG Release to expose $ASSET (poll 15s, up to 15min)..."
 for i in $(seq 1 60); do
   if gh release view "$TAG" -R "$REPO" --json assets -q \
       ".assets[] | select(.name==\"$ASSET\") | .name" 2>/dev/null \
@@ -67,11 +69,11 @@ for i in $(seq 1 60); do
   sleep 15
 done
 
-echo "[2/5] downloading unsigned dmg..."
+echo "[2/7] downloading unsigned dmg..."
 cd "$WORK"
 gh release download "$TAG" -R "$REPO" -p "$ASSET" --clobber
 
-echo "[3/5] signing + notarizing + stapling (this takes ~5min, Apple notary x2)..."
+echo "[3/7] signing + notarizing + stapling (this takes ~5min, Apple notary x2)..."
 "$SIGN_SCRIPT" "$WORK/$ASSET"
 
 SIGNED="$WORK/signed-output/signed_$ASSET"
@@ -85,16 +87,28 @@ xcrun stapler validate "$SIGNED" >/dev/null || { echo "    stapler validate fail
 spctl -a -t open --context context:primary-signature "$SIGNED" >/dev/null 2>&1 \
   || { echo "    spctl assess failed" >&2; exit 6; }
 
-echo "[4/6] uploading signed dmg to $TAG (replacing unsigned)..."
+echo "[4/7] uploading signed dmg to $TAG (replacing unsigned)..."
 cp "$SIGNED" "$WORK/$ASSET"
 gh release upload "$TAG" "$WORK/$ASSET" -R "$REPO" --clobber
 
-echo "[5/6] generating Sparkle appcast..."
+echo "[5/7] generating Sparkle appcast..."
 APPCAST="$WORK/appcast.xml"
 "$REPO_ROOT/scripts/generate-appcast.sh" "$TAG" "$WORK/$ASSET" "$APPCAST" >/dev/null
 gh release upload "$TAG" "$APPCAST" -R "$REPO" --clobber
 
-echo "[6/6] deploying stapled dmg + .app locally..."
+echo "[6/7] generating WinSparkle appcast..."
+if ! gh release view "$TAG" -R "$REPO" --json assets -q \
+    ".assets[] | select(.name==\"$WINDOWS_ASSET\") | .name" 2>/dev/null \
+    | grep -q "^$WINDOWS_ASSET$"; then
+  echo "    missing $WINDOWS_ASSET; check GH Actions for Windows packaging failure." >&2
+  exit 7
+fi
+gh release download "$TAG" -R "$REPO" -p "$WINDOWS_ASSET" --clobber
+WINDOWS_APPCAST="$WORK/appcast-windows.xml"
+"$REPO_ROOT/scripts/generate-windows-appcast.sh" "$TAG" "$WORK/$WINDOWS_ASSET" "$WINDOWS_APPCAST" >/dev/null
+gh release upload "$TAG" "$WINDOWS_APPCAST" -R "$REPO" --clobber
+
+echo "[7/7] deploying stapled dmg + .app locally..."
 mkdir -p "$REPO_ROOT/target"
 
 # Keep a copy of the signed dmg in target/ so it's visible in the repo checkout.

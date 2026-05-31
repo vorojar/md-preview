@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.11
+
+- Added native Windows self-update support with WinSparkle, including EdDSA-signed `appcast-windows.xml`.
+- Added a per-user Windows installer (`MD-Preview-windows-x64-Setup.exe`) that installs `WinSparkle.dll`, Start Menu shortcuts, uninstall metadata, and Markdown open-with registration.
+- Kept the portable Windows ZIP for manual use, now bundled with `WinSparkle.dll`.
+
 ## 1.1.10
 
 - Added native macOS self-update support with Sparkle, including EdDSA update signing and a generated `appcast.xml` release asset.

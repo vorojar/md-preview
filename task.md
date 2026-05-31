@@ -2,50 +2,50 @@
 
 ## 目标
 
-- 将桌面版升级到 `1.1.5`，吸收移动端经验：空白首页提供 Open File 和最近文件入口。
-- 在桌面工具栏补齐打开文件与预览搜索，保留现有编辑、打印和更新检测。
-- 同步官网、README、README_zh、CHANGELOG、bundle 版本，并走发布验证。
+- 将 Windows 版补齐到和 macOS 一样的应用内自更新体验。
+- 发布 `1.1.11`：包含 Windows 安装器、WinSparkle appcast、文档和官网同步。
+- 保留 Windows ZIP 便携包，避免破坏已有手动下载路径。
 
 ## 非目标
 
-- 不重构渲染主线，不引入新前端框架或新运行时依赖。
-- 不改变手机端已发布的 Android `1.0.6` 产物。
+- 不引入 Electron/Tauri 或更换桌面 WebView 架构。
+- 不处理 Windows Authenticode 证书签名；当前仓库/签名链路没有 Windows 代码签名证书。
 
 ## 验收场景
 
-- [x] 空白启动页含主操作 `Open File`，并在本机存在历史记录时展示最近文件。
-- [x] 已加载文档时，工具栏含 Open / Find / Edit / Print，`Cmd/Ctrl+F` 可打开搜索栏。
-- [x] 最近文件只写入本机配置目录，不进入仓库和发布包。
+- [x] Windows release 包含 `MD-Preview-windows-x64-Setup.exe`。
+- [x] Windows 安装器包含 `md-preview.exe`、`WinSparkle.dll`、开始菜单入口、卸载项和 Markdown 打开方式注册。
+- [x] Windows 应用内更新走 WinSparkle，读取 `appcast-windows.xml`，并使用 EdDSA 公钥校验更新包。
+- [x] macOS Sparkle 更新能力保持不回退。
 - [x] `./scripts/verify.sh` 通过。
-- [x] 桌面 `v1.1.5` GitHub Release 生成，并完成 macOS DMG 签名、公证、staple。
+- [ ] `v1.1.11` GitHub Release 完成，Release asset 包含 macOS DMG、Windows 安装器、Windows ZIP、Linux tarball、`appcast.xml`、`appcast-windows.xml`。
 
 ## 执行记录
 
-- [x] 已批量理解桌面端 Rust/WebView 结构、文档、官网和 release workflow。
-- [x] 已完成桌面启动页、最近文件、打开按钮、搜索按钮实现。
-- [x] 已补充单测覆盖空态和工具栏入口。
-- [x] 已同步文档与版本号。
+- [x] 已确认 WinSparkle 官方要求：随应用分发 `WinSparkle.dll`，appcast 走 HTTPS，Windows 安装器可通过 `sparkle:installerArguments="/S"` 静默执行。
+- [x] 已完成 Windows WinSparkle 原生桥接、安装器、release workflow 和验证脚本。
+- [x] 已同步 README、README_zh、官网和 CHANGELOG。
 
 ## 验证记录
 
 ```text
 命令：cargo test
-结果：通过。8/8 tests passed。
+结果：通过。9/9 tests passed。
+
+命令：cargo check --target x86_64-pc-windows-gnu
+结果：通过。Windows cfg 下 WinSparkle FFI 编译通过。
+
+命令：scripts/verify-windows-update.sh
+结果：通过。确认 WinSparkle DLL、安装器脚本、Windows appcast EdDSA 签名格式。
+
+命令：makensis -DVERSION=1.1.11 windows/installer.nsi
+结果：通过。本机用 NSIS 3.11 成功编译 Windows 安装器脚本。
 
 命令：./scripts/verify.sh
-结果：通过。cargo test 8/8；iOS xcodegen/build 与 Swift parse 通过；Android debug/release readiness 通过；mobile renderer 通过。
-
-命令：MD_PREVIEW_BENCH=1 cargo run --quiet；MD_PREVIEW_BENCH=1 cargo run --quiet -- README.md
-结果：通过。空态和文件态都收到 WebView ready 首帧信号。
-
-命令：cargo build --release
-结果：通过。桌面 release profile 构建成功。
-
-命令：gh release view/list；release-sign.sh v1.1.5；stapler/spctl/codesign；下载 release DMG 比对 SHA-256
-结果：通过。v1.1.5 为 Latest，Release 含 macOS DMG / Windows ZIP / Linux tar.gz；macOS DMG 与内部 app 已签名、公证、staple；线上 DMG 与本地签名 DMG SHA-256 一致。
+结果：通过。guard、cargo test、macOS Sparkle 验证、WinSparkle 验证、iOS build/parse、Android debug/release、mobile renderer/release readiness 均通过。
 ```
 
 ## 风险和假设
 
-- 预览搜索使用系统 WebView 的 `window.find`，保持轻量；不同平台查找高亮由系统 WebView 负责。
-- 最近文件按本机路径保存，删除或移动后的文件会在下次加载最近列表时过滤。
+- Windows 自更新会校验 EdDSA appcast 签名；安装器本身目前未做 Authenticode 签名，因为项目没有配置 Windows 代码签名证书。
+- WinSparkle 更新前若检测到源码编辑区有未保存修改，会拒绝让更新器直接关闭应用，避免丢内容。

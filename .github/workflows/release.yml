@@ -72,18 +72,36 @@ jobs:
       - name: Build
         run: cargo build --release
 
+      - name: Fetch WinSparkle
+        shell: bash
+        run: scripts/fetch-winsparkle.sh
+
       - name: Package
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/release/md-preview.exe dist/
+          cp target/winsparkle/WinSparkle-0.9.3/x64/Release/WinSparkle.dll dist/
+          powershell.exe -NoProfile -Command "Compress-Archive -Force -Path dist\\* -DestinationPath MD-Preview-windows-x64.zip"
+
+      - name: Build installer
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path dist
-          Copy-Item target/release/md-preview.exe dist/
-          Compress-Archive -Path dist/* -DestinationPath MD-Preview-windows-x64.zip
+          choco install nsis -y --no-progress
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "([^"]+)"').Matches[0].Groups[1].Value
+          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" "-DVERSION=$version" "windows\installer.nsi"
+          if (-not (Test-Path "dist/MD-Preview-windows-x64-Setup.exe")) {
+            throw "installer missing"
+          }
+          Copy-Item dist/MD-Preview-windows-x64-Setup.exe MD-Preview-windows-x64-Setup.exe -Force
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-zip
-          path: MD-Preview-windows-x64.zip
+          name: windows
+          path: |
+            MD-Preview-windows-x64.zip
+            MD-Preview-windows-x64-Setup.exe
 
   build-linux:
     runs-on: ubuntu-latest
@@ -127,6 +145,7 @@ jobs:
         with:
           files: |
             MD-Preview-macOS-universal.dmg
+            MD-Preview-windows-x64-Setup.exe
             MD-Preview-windows-x64.zip
             MD-Preview-linux-x64.tar.gz
           generate_release_notes: true
