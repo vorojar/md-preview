@@ -96,7 +96,7 @@ On Android, MD Preview appears in the system "Open with" and share flows for Mar
 | GitHub-flavored Markdown | Tables, task lists, strikethrough, heading attributes, and anchors. |
 | External links | `http`, `https`, and `mailto` links open in the system browser or mail app. |
 | Window restore | Last size and position are restored when still visible on a connected monitor. |
-| Update check | After first paint, MD Preview checks GitHub Releases and shows a small update button if a newer version exists. |
+| Updates | After first paint, MD Preview checks desktop GitHub Releases. macOS uses Sparkle for signed in-app updates; Windows and Linux open the matching release download. |
 
 ## Keyboard Shortcuts
 
@@ -137,7 +137,7 @@ The release profile enables size-oriented optimization, LTO, one codegen unit, s
 
 ## Privacy
 
-MD Preview has no accounts, no telemetry, and no analytics. Your Markdown files stay on disk. Rendering happens locally. The only network request made by the app itself is the optional GitHub Releases update check after the first paint; failed checks are ignored and never block startup.
+MD Preview has no accounts, no telemetry, and no analytics. Your Markdown files stay on disk. Rendering happens locally. The only network request made by the desktop app itself is the optional update check after the first paint; failed checks are ignored and never block startup. macOS updates are verified by Sparkle using the app's embedded EdDSA public key.
 
 ## Troubleshooting
 

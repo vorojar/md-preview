@@ -12,7 +12,8 @@
 #   3. signs + notarizes + staples (both inner .app AND the dmg) via the
 #      remote signing machine at yihafo1109@192.168.3.207
 #   4. uploads the signed dmg back to the Release, overwriting the unsigned one
-#   5. drops the stapled .app into target/ and /Applications if that copy exists
+#   5. generates and uploads Sparkle appcast.xml for in-app self-update
+#   6. drops the stapled .app into target/ and /Applications if that copy exists
 #
 # Expected end state: the Release's macOS dmg and the .app inside it both
 # pass `stapler validate`, `codesign --verify`, and `spctl --assess` —
@@ -84,11 +85,16 @@ xcrun stapler validate "$SIGNED" >/dev/null || { echo "    stapler validate fail
 spctl -a -t open --context context:primary-signature "$SIGNED" >/dev/null 2>&1 \
   || { echo "    spctl assess failed" >&2; exit 6; }
 
-echo "[4/5] uploading signed dmg to $TAG (replacing unsigned)..."
+echo "[4/6] uploading signed dmg to $TAG (replacing unsigned)..."
 cp "$SIGNED" "$WORK/$ASSET"
 gh release upload "$TAG" "$WORK/$ASSET" -R "$REPO" --clobber
 
-echo "[5/5] deploying stapled dmg + .app locally..."
+echo "[5/6] generating Sparkle appcast..."
+APPCAST="$WORK/appcast.xml"
+"$REPO_ROOT/scripts/generate-appcast.sh" "$TAG" "$WORK/$ASSET" "$APPCAST" >/dev/null
+gh release upload "$TAG" "$APPCAST" -R "$REPO" --clobber
+
+echo "[6/6] deploying stapled dmg + .app locally..."
 mkdir -p "$REPO_ROOT/target"
 
 # Keep a copy of the signed dmg in target/ so it's visible in the repo checkout.

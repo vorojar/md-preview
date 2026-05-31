@@ -6,6 +6,9 @@ BUNDLE_ID="com.mdpreview.app"
 MD_UTI="net.daringfireball.markdown"
 BIN="target/release/md-preview"
 APP_DIR="target/${APP_NAME}.app"
+APP_VERSION="$(awk -F\" '/^version = / { print $2; exit }' Cargo.toml)"
+SPARKLE_PUBLIC_KEY="fstkwGnjUNSrHFW4oq3LpBMQ1dhh9lQtax5K7nI0uoQ="
+SPARKLE_FEED_URL="https://github.com/vorojar/md-preview/releases/latest/download/appcast.xml"
 
 echo "Building release (arm64 + x86_64)..."
 cargo build --release --target aarch64-apple-darwin
@@ -21,9 +24,12 @@ echo "Creating app bundle..."
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
+mkdir -p "$APP_DIR/Contents/Frameworks"
 
 cp target/release/md-preview-universal "$APP_DIR/Contents/MacOS/md-preview"
 cp assets/icon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
+SPARKLE_DIR="$(scripts/fetch-sparkle.sh)"
+ditto "$SPARKLE_DIR/Sparkle.framework" "$APP_DIR/Contents/Frameworks/Sparkle.framework"
 
 cat > "$APP_DIR/Contents/Info.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -37,9 +43,9 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
     <key>CFBundleIdentifier</key>
     <string>${BUNDLE_ID}</string>
     <key>CFBundleVersion</key>
-    <string>1.1.9</string>
+    <string>${APP_VERSION}</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.1.9</string>
+    <string>${APP_VERSION}</string>
     <key>CFBundleExecutable</key>
     <string>md-preview</string>
     <key>CFBundleIconFile</key>
@@ -47,6 +53,14 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.15</string>
+    <key>SUFeedURL</key>
+    <string>${SPARKLE_FEED_URL}</string>
+    <key>SUPublicEDKey</key>
+    <string>${SPARKLE_PUBLIC_KEY}</string>
+    <key>SUEnableAutomaticChecks</key>
     <true/>
     <key>CFBundleDocumentTypes</key>
     <array>

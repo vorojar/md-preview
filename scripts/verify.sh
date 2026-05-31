@@ -62,6 +62,12 @@ if [ -f Cargo.toml ]; then
   fi
 fi
 
+if [ -x scripts/verify-sparkle-update.sh ]; then
+  echo "[agent-verify] Sparkle update"
+  scripts/verify-sparkle-update.sh
+  ran=1
+fi
+
 if [ -f mobile/ios/project.yml ]; then
   if command -v xcodegen >/dev/null 2>&1 && command -v xcodebuild >/dev/null 2>&1; then
     echo "[agent-verify] iOS xcodegen"

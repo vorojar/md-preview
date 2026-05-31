@@ -96,7 +96,7 @@ Android 上，MD Preview 会出现在 Markdown 文件的“打开方式”和分
 | GFM 支持 | 表格、任务列表、删除线、heading attributes、标题锚点。 |
 | 外链跳转 | `http`、`https`、`mailto` 链接交给系统浏览器或邮件客户端。 |
 | 窗口恢复 | 下次启动恢复上次位置和大小；断开显示器后自动回到可见屏幕。 |
-| 更新检测 | 首屏之后检查 GitHub Releases，有新版本时显示一个小更新按钮。 |
+| 更新 | 首屏之后检查桌面版 GitHub Releases。macOS 使用 Sparkle 做签名校验和应用内更新；Windows / Linux 打开对应 release 下载。 |
 
 ## 快捷键
 
@@ -137,7 +137,7 @@ Release profile 使用面向体积的优化、LTO、单 codegen unit、符号裁
 
 ## 隐私
 
-MD Preview 没有账号、没有 telemetry、没有 analytics。你的 Markdown 文件留在本地磁盘，渲染也在本机完成。应用自身唯一的网络请求是首屏之后的 GitHub Releases 更新检测；失败会静默忽略，不影响启动和预览。
+MD Preview 没有账号、没有 telemetry、没有 analytics。你的 Markdown 文件留在本地磁盘，渲染也在本机完成。桌面应用自身唯一的网络请求是首屏之后的可选更新检测；失败会静默忽略，不影响启动和预览。macOS 更新由 Sparkle 使用应用内置的 EdDSA 公钥校验。
 
 ## 常见问题
 

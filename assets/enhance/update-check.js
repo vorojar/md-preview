@@ -28,6 +28,59 @@
     return false;
   }
 
+  function isDesktopReleaseTag(tagName) {
+    return typeof tagName === 'string' && /^v\d+(?:\.\d+)+$/.test(tagName.trim());
+  }
+
+  function selectDesktopRelease(payload, currentVersion) {
+    var releases = Array.isArray(payload) ? payload : [payload];
+    var best = null;
+
+    for (var i = 0; i < releases.length; i++) {
+      var release = releases[i];
+      if (!release || release.draft || release.prerelease) continue;
+      if (!isDesktopReleaseTag(release.tag_name)) continue;
+      if (!isNewerVersion(release.tag_name, currentVersion)) continue;
+      if (!best || isNewerVersion(release.tag_name, best.tag_name)) {
+        best = release;
+      }
+    }
+
+    return best;
+  }
+
+  function preferredAssetPattern() {
+    var nav = typeof navigator !== 'undefined' ? navigator : {};
+    var platform = (nav.platform || '').toLowerCase();
+    var ua = (nav.userAgent || '').toLowerCase();
+
+    if (platform.indexOf('mac') >= 0 || ua.indexOf('mac os') >= 0) {
+      return /macos.*\.dmg$/i;
+    }
+    if (platform.indexOf('win') >= 0 || ua.indexOf('windows') >= 0) {
+      return /windows.*\.zip$/i;
+    }
+    if (platform.indexOf('linux') >= 0 || ua.indexOf('linux') >= 0) {
+      return /linux.*\.tar\.gz$/i;
+    }
+    return null;
+  }
+
+  function selectDownloadUrl(release) {
+    var pattern = preferredAssetPattern();
+    var assets = release && Array.isArray(release.assets) ? release.assets : [];
+    if (!pattern) return release && release.html_url;
+
+    for (var i = 0; i < assets.length; i++) {
+      var asset = assets[i];
+      if (asset && pattern.test(asset.name || '') && asset.browser_download_url) {
+        return asset.browser_download_url;
+      }
+    }
+
+    return release && release.html_url;
+  }
+
   function storageGet(key) {
     try {
       return window.localStorage.getItem(key);
@@ -68,7 +121,8 @@
 
     function openRelease() {
       var url = button.dataset.releaseUrl || latestUrl;
-      if (window.ipc) window.ipc.postMessage('open-url:' + url);
+      if (config.nativeUpdater && window.ipc) window.ipc.postMessage('check-updates');
+      else if (window.ipc) window.ipc.postMessage('open-url:' + url);
       else window.location.href = url;
     }
 
@@ -76,11 +130,12 @@
       if (!release || !release.tag_name) return false;
       if (!isNewerVersion(release.tag_name, config.currentVersion)) return false;
 
-      var url = release.html_url || latestUrl;
+      var url = release.download_url || selectDownloadUrl(release) || release.html_url || latestUrl;
       button.dataset.releaseUrl = url;
       button.title = label + ': ' + release.tag_name;
       button.setAttribute('aria-label', button.title);
       button.hidden = false;
+      if (button.parentElement) button.parentElement.classList.add('has-update');
       return true;
     }
 
@@ -99,7 +154,11 @@
             parsed.checkedAt &&
             now - parsed.checkedAt < maxAgeMs
           ) {
-            applyRelease({ tag_name: parsed.tagName, html_url: parsed.htmlUrl });
+            applyRelease({
+              tag_name: parsed.tagName,
+              html_url: parsed.htmlUrl,
+              download_url: parsed.downloadUrl
+            });
             return;
           }
         } catch (e) {}
@@ -118,12 +177,14 @@
           if (!response.ok) throw new Error('update check failed');
           return response.json();
         })
-        .then(function(release) {
+        .then(function(payload) {
+          var release = selectDesktopRelease(payload, config.currentVersion);
           storageSet(storageKey, JSON.stringify({
             checkedAt: now,
             currentVersion: config.currentVersion,
             tagName: release && release.tag_name,
-            htmlUrl: release && release.html_url
+            htmlUrl: release && release.html_url,
+            downloadUrl: release && selectDownloadUrl(release)
           }));
           applyRelease(release);
         })
@@ -136,4 +197,6 @@
 
   window.__mdPreviewInstallUpdateCheck = installUpdateCheck;
   window.__mdPreviewIsNewerVersion = isNewerVersion;
+  window.__mdPreviewSelectDesktopRelease = selectDesktopRelease;
+  window.__mdPreviewSelectDownloadUrl = selectDownloadUrl;
 })();

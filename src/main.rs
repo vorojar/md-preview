@@ -603,7 +603,7 @@ body {{
 	.recent-name {{ color: #555; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
 	.recent-path {{ color: #aaa; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
 
-/* Floating toolbar (top-right) — hover-reveal, hidden in empty state */
+/* Floating toolbar (top-right) — hover-reveal, hidden in empty state unless an update exists */
 .toolbar {{
   position: fixed; top: 10px; right: 12px;
   display: flex; gap: 6px; z-index: 100;
@@ -611,7 +611,9 @@ body {{
   transition: opacity 0.18s ease;
 }}
 html:hover .toolbar {{ opacity: 1; pointer-events: auto; }}
-body.empty .toolbar {{ display: none !important; }}
+body.empty .toolbar:not(.has-update) {{ display: none !important; }}
+body.empty .toolbar.has-update {{ opacity: 1; pointer-events: auto; }}
+body.empty .toolbar.has-update button:not(.update-btn) {{ display: none !important; }}
 .toolbar button {{
   width: 34px; height: 34px; padding: 0;
   background: rgba(255,255,255,0.8);
@@ -944,7 +946,8 @@ window.__mdPreviewFeatureFlags = {{ math: {needs_math}, mermaid: {needs_mermaid}
 window.__mdPreviewInstallUpdateCheck({{
   currentVersion: '{app_version}',
   buttonLabel: '{btn_update_js}',
-  apiUrl: 'https://api.github.com/repos/vorojar/md-preview/releases/latest',
+  nativeUpdater: {native_updater},
+  apiUrl: 'https://api.github.com/repos/vorojar/md-preview/releases?per_page=20',
   latestUrl: 'https://github.com/vorojar/md-preview/releases/latest'
 }});
 </script>
@@ -962,7 +965,8 @@ window.__mdPreviewInstallUpdateCheck({{
         btn_update = s.btn_update,
         search_placeholder = s.search_placeholder,
         btn_update_js = escape_js(s.btn_update),
-        app_version = env!("CARGO_PKG_VERSION"),
+        app_version = update_current_version(),
+        native_updater = cfg!(target_os = "macos"),
         body_class = body_class,
         needs_math = flags.math,
         needs_mermaid = flags.mermaid,
@@ -981,6 +985,18 @@ fn escape_js(s: &str) -> String {
 fn is_allowed_update_url(url: &str) -> bool {
     url == "https://github.com/vorojar/md-preview/releases/latest"
         || url.starts_with("https://github.com/vorojar/md-preview/releases/tag/")
+        || url.starts_with("https://github.com/vorojar/md-preview/releases/download/")
+}
+
+fn update_current_version() -> String {
+    #[cfg(debug_assertions)]
+    {
+        if let Ok(version) = std::env::var("MD_PREVIEW_TEST_CURRENT_VERSION") {
+            return version;
+        }
+    }
+
+    env!("CARGO_PKG_VERSION").to_string()
 }
 
 fn watch_scope_for_file(path: &Path) -> &Path {
@@ -1059,6 +1075,18 @@ mod tests {
         assert!(page.contains("body.editing #btn-open"));
         assert!(page.contains("ta.focus({ preventScroll: true })"));
         assert!(page.contains("window.__setEmptyPreview"));
+        assert!(page.contains("releases?per_page=20"));
+        assert!(page.contains("body.empty .toolbar.has-update"));
+    }
+
+    #[test]
+    fn update_download_urls_are_allowed() {
+        assert!(is_allowed_update_url(
+            "https://github.com/vorojar/md-preview/releases/download/v1.1.9/MD-Preview-macOS-universal.dmg"
+        ));
+        assert!(!is_allowed_update_url(
+            "https://github.com/other/project/releases/download/v1.0.0/app.dmg"
+        ));
     }
 
     #[test]
@@ -1305,6 +1333,115 @@ fn install_macos_edit_menu() {
 #[cfg(not(target_os = "macos"))]
 fn install_macos_edit_menu() {}
 
+#[cfg(target_os = "macos")]
+mod macos_updater {
+    use objc2::msg_send;
+    use objc2::runtime::{AnyClass, AnyObject, Bool};
+    use std::ffi::{c_char, c_void, CStr, CString};
+    use std::path::PathBuf;
+    use std::sync::OnceLock;
+
+    static CONTROLLER: OnceLock<usize> = OnceLock::new();
+    static FRAMEWORK_HANDLE: OnceLock<usize> = OnceLock::new();
+
+    const RTLD_NOW: i32 = 0x2;
+    const RTLD_GLOBAL: i32 = 0x8;
+
+    unsafe extern "C" {
+        fn dlopen(path: *const c_char, mode: i32) -> *mut c_void;
+    }
+
+    fn bundled_framework_path() -> Option<CString> {
+        let exe = std::env::current_exe().ok()?;
+        let path: PathBuf = exe
+            .parent()?
+            .join("../Frameworks/Sparkle.framework/Sparkle");
+        if !path.exists() {
+            return None;
+        }
+        CString::new(path.to_string_lossy().as_bytes()).ok()
+    }
+
+    fn load_framework() -> bool {
+        if FRAMEWORK_HANDLE.get().is_some() {
+            return true;
+        }
+        let Some(path) = bundled_framework_path() else {
+            return false;
+        };
+        let handle = unsafe { dlopen(path.as_ptr(), RTLD_NOW | RTLD_GLOBAL) };
+        if handle.is_null() {
+            return false;
+        }
+        let _ = FRAMEWORK_HANDLE.set(handle as usize);
+        true
+    }
+
+    pub fn start() -> bool {
+        if CONTROLLER.get().is_some() {
+            return true;
+        }
+        if !load_framework() {
+            return false;
+        }
+
+        let Some(controller_class) =
+            AnyClass::get(CStr::from_bytes_with_nul(b"SPUStandardUpdaterController\0").unwrap())
+        else {
+            return false;
+        };
+
+        let controller: *mut AnyObject = unsafe {
+            let allocated: *mut AnyObject = msg_send![controller_class, alloc];
+            msg_send![
+                allocated,
+                initWithStartingUpdater: Bool::YES,
+                updaterDelegate: Option::<&AnyObject>::None,
+                userDriverDelegate: Option::<&AnyObject>::None
+            ]
+        };
+        if controller.is_null() {
+            return false;
+        }
+        let _ = CONTROLLER.set(controller as usize);
+        true
+    }
+
+    pub fn check_for_updates() -> bool {
+        if !start() {
+            return false;
+        }
+        let Some(ptr) = CONTROLLER.get().copied() else {
+            return false;
+        };
+        let controller = ptr as *mut AnyObject;
+        unsafe {
+            let _: () = msg_send![controller, checkForUpdates: Option::<&AnyObject>::None];
+        }
+        true
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn start_native_updater() -> bool {
+    macos_updater::start()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn start_native_updater() -> bool {
+    false
+}
+
+#[cfg(target_os = "macos")]
+fn check_native_updates() -> bool {
+    macos_updater::check_for_updates()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn check_native_updates() -> bool {
+    false
+}
+
 fn main() {
     // Bench instrumentation: MD_PREVIEW_BENCH=1 makes the app print
     // cold-start timings to stderr and exit as soon as the first paint
@@ -1346,6 +1483,10 @@ fn main() {
 
     let event_loop: EventLoop<UserEvent> = EventLoopBuilder::with_user_event().build();
     install_macos_edit_menu();
+    let native_updater_available = start_native_updater();
+    if bench && native_updater_available {
+        bench_log("native_updater_started");
+    }
     let proxy = event_loop.create_proxy();
 
     let title = initial_file
@@ -1490,6 +1631,10 @@ fn main() {
             } else if let Some(url) = body.strip_prefix("open-url:") {
                 if is_allowed_update_url(url) {
                     let _ = open::that(url);
+                }
+            } else if body == "check-updates" {
+                if !check_native_updates() {
+                    let _ = open::that("https://github.com/vorojar/md-preview/releases/latest");
                 }
             } else if let Some(content) = body.strip_prefix("save:") {
                 let fp = file_path_for_ipc.lock().unwrap().clone();

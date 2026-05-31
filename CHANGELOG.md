@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.10
+
+- Added native macOS self-update support with Sparkle, including EdDSA update signing and a generated `appcast.xml` release asset.
+- Updated the desktop update button so macOS uses Sparkle's in-app update flow while other desktop platforms still fall back to the GitHub download.
+- Filtered update checks to desktop `vX.Y.Z` releases so Android mobile releases cannot interfere with desktop update detection.
+
 ## 1.1.9
 
 - Made stale Recent entries safe on desktop by removing missing files from the start screen instead of trying to open them.
