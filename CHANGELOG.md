@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.13
+
+- Improved wide Markdown tables: multi-column tables now expand beyond the reading column on desktop and scroll horizontally when needed, avoiding cramped vertical headers and over-wrapped cells.
+
 ## 1.1.12
 
 - Replaced the Windows installer/WinSparkle update path with a single-file self-updater.

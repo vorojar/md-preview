@@ -572,8 +572,17 @@ body {{
 #preview pre code {{ background: none; padding: 0; font-size: 14px; }}
 #preview blockquote {{ border-left: 4px solid #ddd; margin: 0; padding: 0 1em; color: #666; }}
 #preview table {{ border-collapse: collapse; width: 100%; }}
+#preview .mdp-table-wrap {{
+  width: min(calc(100vw - 64px), 1280px);
+  margin: 1em 0 1em 50%;
+  transform: translateX(-50%);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}}
+#preview .mdp-table-wrap table {{ width: max-content; min-width: 100%; }}
 #preview table th, #preview table td {{ border: 1px solid #ddd; padding: 8px 12px; text-align: left; }}
-#preview table th {{ background: #f6f8fa; font-weight: 600; color: #1a1a1a; }}
+#preview table th {{ background: #f6f8fa; font-weight: 600; color: #1a1a1a; white-space: nowrap; }}
+#preview table td {{ min-width: 64px; max-width: 360px; vertical-align: top; overflow-wrap: break-word; }}
 #preview img {{ max-width: 100%; }}
 #preview .katex-display {{ overflow-x: auto; overflow-y: hidden; padding: 0.15em 0; }}
 #preview .mdp-mermaid {{ margin: 1.2em 0; overflow-x: auto; text-align: center; }}
@@ -688,6 +697,7 @@ body.editing #btn-print {{ display: none; }}
   .toolbar, #editor {{ display: none !important; }}
   #preview {{ display: block !important; }}
   #app {{ max-width: none; padding: 0; }}
+  #preview .mdp-table-wrap {{ width: auto; margin: 1em 0; transform: none; overflow: visible; }}
 }}
 	</style></head><body class="{body_class}">
 	<div class="toolbar">
@@ -944,6 +954,7 @@ body.editing #btn-print {{ display: none; }}
 }})();
 window.__mdPreviewFeatureFlags = {{ math: {needs_math}, mermaid: {needs_mermaid} }};
 {preview_enhance_js}
+if(window.__enhancePreview)window.__enhancePreview();
 {update_check_js}
 window.__mdPreviewInstallUpdateCheck({{
   currentVersion: '{app_version}',
@@ -1079,6 +1090,23 @@ mod tests {
         assert!(page.contains("window.__setEmptyPreview"));
         assert!(page.contains("releases?per_page=20"));
         assert!(page.contains("body.empty .toolbar.has-update"));
+    }
+
+    #[test]
+    fn page_expands_multi_column_tables() {
+        let strings = Strings::for_lang(Lang::En);
+        let page = build_page(
+            &md_to_html("| A | B | C | D |\n|---|---|---|---|\n| 1 | 2 | 3 | 4 |"),
+            "",
+            None,
+            EnhanceFlags::default(),
+            &strings,
+            false,
+        );
+
+        assert!(page.contains("mdp-table-wrap"));
+        assert!(page.contains("width: min(calc(100vw - 64px), 1280px)"));
+        assert!(page.contains("if(window.__enhancePreview)window.__enhancePreview();"));
     }
 
     #[test]

@@ -201,6 +201,21 @@
     });
   }
 
+  function enhanceTables(root) {
+    var tables = root.querySelectorAll('table');
+    Array.prototype.forEach.call(tables, function(table) {
+      if (hasClassInTree(table, 'mdp-table-wrap')) return;
+      var firstRow = table.querySelector('tr');
+      var cellCount = firstRow ? firstRow.children.length : 0;
+      if (cellCount < 4) return;
+
+      var wrap = document.createElement('div');
+      wrap.className = 'mdp-table-wrap';
+      table.parentNode.insertBefore(wrap, table);
+      wrap.appendChild(table);
+    });
+  }
+
   window.__setFeatureFlags = setFlags;
 
   window.__setKatexCss = function(css) {
@@ -215,6 +230,7 @@
     var root = document.getElementById('preview');
     if (!root) return;
     idle(function() {
+      enhanceTables(root);
       enhanceMath(root);
       enhanceMermaid(root);
     });

@@ -273,10 +273,20 @@ body.empty #preview {
 
 #preview table {
   display: block;
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   overflow-x: auto;
   border-collapse: collapse;
   -webkit-overflow-scrolling: touch;
+}
+
+#preview .mdp-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#preview .mdp-table-wrap table {
+  display: table;
 }
 
 #preview th,
@@ -290,6 +300,14 @@ body.empty #preview {
   background: var(--soft);
   color: var(--fg);
   font-weight: 600;
+  white-space: nowrap;
+}
+
+#preview td {
+  min-width: 64px;
+  max-width: 320px;
+  vertical-align: top;
+  overflow-wrap: break-word;
 }
 
 #preview img,
