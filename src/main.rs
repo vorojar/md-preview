@@ -850,6 +850,7 @@ body.editing #btn-print {{ display: none; }}
 	  var dirty = false;
 	  var composingFind = false;
 	  var pendingFindTimer = 0;
+	  var FIND_DEBOUNCE_MS = 300;
 
 	  btnOpen.innerHTML = ICON_OPEN;
 	  btnSearch.innerHTML = ICON_SEARCH;
@@ -891,29 +892,40 @@ body.editing #btn-print {{ display: none; }}
 	    var sel = window.getSelection && window.getSelection();
 	    if (sel && sel.removeAllRanges) sel.removeAllRanges();
 	  }}
-	  function focusFindInput() {{
+	  function focusFindInput(selectionStart, selectionEnd) {{
 	    if (!document.body.classList.contains('finding')) return;
-	    if (document.activeElement === findInput) return;
 	    try {{
 	      findInput.focus({{ preventScroll: true }});
 	    }} catch (_) {{
 	      findInput.focus();
 	    }}
+	    if (typeof selectionStart === 'number' && typeof selectionEnd === 'number') {{
+	      try {{ findInput.setSelectionRange(selectionStart, selectionEnd); }} catch (_) {{}}
+	    }}
+	  }}
+	  function restoreFindInput(selectionStart, selectionEnd) {{
+	    setTimeout(function() {{ focusFindInput(selectionStart, selectionEnd); }}, 0);
+	    requestAnimationFrame(function() {{
+	      focusFindInput(selectionStart, selectionEnd);
+	      setTimeout(function() {{ focusFindInput(selectionStart, selectionEnd); }}, 80);
+	    }});
 	  }}
 	  function runFind(backward) {{
 	    var q = findInput.value;
 	    if (!q) {{ findState.textContent = ''; return; }}
 	    var hadFocus = document.activeElement === findInput;
+	    var selectionStart = findInput.selectionStart;
+	    var selectionEnd = findInput.selectionEnd;
 	    var found = window.find ? window.find(q, false, !!backward, true, false, false, false) : false;
 	    findState.textContent = found ? '' : '0';
-	    if (hadFocus) setTimeout(focusFindInput, 0);
+	    if (hadFocus) restoreFindInput(selectionStart, selectionEnd);
 	  }}
 	  function scheduleFind() {{
 	    if (pendingFindTimer) clearTimeout(pendingFindTimer);
 	    pendingFindTimer = setTimeout(function() {{
 	      pendingFindTimer = 0;
 	      if (!composingFind) runFind(false);
-	    }}, 80);
+	    }}, FIND_DEBOUNCE_MS);
 	  }}
   // Grow textarea height to its content so the page (html) owns the sole
   // scrollbar; avoids the double-scrollbar you see if textarea keeps its
@@ -1273,6 +1285,9 @@ mod tests {
         assert!(page.contains("compositionstart"));
         assert!(page.contains("e.isComposing"));
         assert!(page.contains("focusFindInput"));
+        assert!(page.contains("FIND_DEBOUNCE_MS = 300"));
+        assert!(page.contains("restoreFindInput(selectionStart, selectionEnd)"));
+        assert!(page.contains("findInput.setSelectionRange(selectionStart, selectionEnd)"));
         assert!(page.contains("body.empty .toolbar.has-update"));
         assert!(page.contains("bindAnchorNavigation"));
         assert!(page.contains("event.target.closest('#preview a[href]')"));
