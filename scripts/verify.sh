@@ -54,6 +54,20 @@ if [ -f Makefile ] && grep -qE '^verify:' Makefile; then
   ran=1
 fi
 
+if [ -f release-sign.sh ]; then
+  echo "[agent-verify] release signing contract"
+  bash -n release-sign.sh scripts/release.sh
+  if ! grep -F 'remote-mac-sign/sign.sh' release-sign.sh >/dev/null; then
+    echo "[agent-verify] release-sign.sh must use the local-first remote-mac-sign/sign.sh entrypoint" >&2
+    exit 1
+  fi
+  if grep -F 'SIGN_SCRIPT="$HOME/.claude/skills/remote-mac-sign/sign_remote.sh"' release-sign.sh >/dev/null; then
+    echo "[agent-verify] release-sign.sh must not hard-code the remote-only signer" >&2
+    exit 1
+  fi
+  ran=1
+fi
+
 if [ -f Cargo.toml ]; then
   if command -v cargo >/dev/null 2>&1; then
     echo "[agent-verify] cargo test"

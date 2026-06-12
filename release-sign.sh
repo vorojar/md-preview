@@ -10,7 +10,7 @@
 #   1. waits for the Release's unsigned MD-Preview-macOS-universal.dmg to land
 #   2. downloads it
 #   3. signs + notarizes + staples (both inner .app AND the dmg) via the
-#      remote signing machine at yihafo1109@192.168.3.207
+#      local-first remote-mac-sign dispatcher
 #   4. uploads the signed dmg back to the Release, overwriting the unsigned one
 #   5. generates and uploads Sparkle appcast.xml for macOS in-app self-update
 #   6. drops the stapled .app into target/ and /Applications if that copy exists
@@ -43,10 +43,16 @@ trap cleanup EXIT
 
 REPO="vorojar/md-preview"
 ASSET="MD-Preview-macOS-universal.dmg"
-SIGN_SCRIPT="$HOME/.claude/skills/remote-mac-sign/sign_remote.sh"
+SIGN_SCRIPT="${MD_PREVIEW_SIGN_SCRIPT:-$HOME/.claude/skills/remote-mac-sign/sign.sh}"
+SIGN_ATTEMPTS="${MD_PREVIEW_SIGN_ATTEMPTS:-2}"
 
 if [ ! -x "$SIGN_SCRIPT" ]; then
-  echo "error: remote-mac-sign skill not found at $SIGN_SCRIPT" >&2
+  echo "error: signing script not found or not executable at $SIGN_SCRIPT" >&2
+  exit 2
+fi
+
+if [[ ! "$SIGN_ATTEMPTS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "error: MD_PREVIEW_SIGN_ATTEMPTS must be a positive integer" >&2
   exit 2
 fi
 
@@ -76,7 +82,20 @@ cd "$WORK"
 gh release download "$TAG" -R "$REPO" -p "$ASSET" --clobber
 
 echo "[3/6] signing + notarizing + stapling (this takes ~5min, Apple notary x2)..."
-"$SIGN_SCRIPT" "$WORK/$ASSET"
+for attempt in $(seq 1 "$SIGN_ATTEMPTS"); do
+  rm -rf "$WORK/signed-output"
+  echo "    signing attempt $attempt/$SIGN_ATTEMPTS via $SIGN_SCRIPT"
+  if "$SIGN_SCRIPT" "$WORK/$ASSET"; then
+    break
+  fi
+  rc=$?
+  if [ "$attempt" -eq "$SIGN_ATTEMPTS" ]; then
+    echo "    signing failed after $SIGN_ATTEMPTS attempt(s), last rc=$rc" >&2
+    exit "$rc"
+  fi
+  echo "    signing failed with rc=$rc; retrying in 20s..."
+  sleep 20
+done
 
 SIGNED="$WORK/signed-output/signed_$ASSET"
 if [ ! -f "$SIGNED" ]; then

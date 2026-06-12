@@ -21,7 +21,9 @@ usage() {
     '' \
     'Environment:' \
     '  SKIP_VERIFY=1                    skip ./scripts/verify.sh' \
-    '  MD_PREVIEW_GITHUB_REPO=owner/repo override GitHub repo' >&2
+    '  MD_PREVIEW_GITHUB_REPO=owner/repo override GitHub repo' \
+    '  MD_PREVIEW_SIGN_SCRIPT=path       override local-first signing script' \
+    '  MD_PREVIEW_SIGN_ATTEMPTS=N        signing attempts before failing (default: 2)' >&2
 }
 
 if [ "${TAG:-}" = "-h" ] || [ "${TAG:-}" = "--help" ]; then

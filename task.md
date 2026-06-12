@@ -1,4 +1,52 @@
-# 当前任务
+# 当前任务：发布签名链路修复
+
+## 目标
+
+- 让 MD Preview 发布脚本默认使用 remote-mac-sign 的本地优先入口，而不是直接调用远程签名机。
+- 对 Apple notary 的瞬态失败增加一次自动重试，减少手动恢复发布的概率。
+- 把签名入口约束加入统一验证，避免以后回退成远程优先。
+
+## 非目标
+
+- 不重新发布 `v1.1.19`。
+- 不修改全局 remote-mac-sign skill，不影响其他项目的签名行为。
+- 不改变 GitHub Release、Sparkle appcast 或 Homebrew Cask 的发布格式。
+
+## 验收场景
+
+- [x] 默认签名脚本为 `$HOME/.claude/skills/remote-mac-sign/sign.sh`，由 skill 决定本地可用时本地签、本地不可用时兜底远程。
+- [x] 可以用 `MD_PREVIEW_SIGN_SCRIPT` 覆盖签名入口，用 `MD_PREVIEW_SIGN_ATTEMPTS` 控制重试次数。
+- [x] `MD_PREVIEW_SIGN_ATTEMPTS=0 ./release-sign.sh v1.1.19` 在联网/下载 Release 前失败，提示必须是正整数。
+- [x] `scripts/verify.sh` 会检查 `release-sign.sh` 不再硬编码 `sign_remote.sh`。
+
+## 执行记录
+
+- [x] `release-sign.sh` 默认签名入口从 `sign_remote.sh` 改为本地优先的 `sign.sh`。
+- [x] `release-sign.sh` 增加签名重试循环，默认最多尝试 2 次，每次重试前清理本次工作目录里的旧 `signed-output`。
+- [x] `scripts/release.sh --help` 补充签名脚本和签名重试环境变量。
+- [x] `scripts/verify.sh` 增加 release signing contract 检查和 shell 语法检查。
+
+## 验证记录
+
+```text
+命令：bash -n release-sign.sh scripts/release.sh scripts/verify.sh
+结果：通过。
+
+命令：MD_PREVIEW_SIGN_ATTEMPTS=0 ./release-sign.sh v1.1.19
+结果：通过。脚本在联网/下载 Release 前以 exit 2 失败，并提示 `MD_PREVIEW_SIGN_ATTEMPTS must be a positive integer`。
+
+命令：./scripts/verify.sh
+结果：通过。覆盖 release signing contract、cargo test、anchor navigation、Sparkle update、Windows self-update、iOS xcodegen/build/parse、Android debug/release、mobile renderer、release readiness。
+```
+
+## 风险和假设
+
+- 本次不触发真实发布和真实签名；真实 Apple notary 仍可能卡在 Apple 服务侧，但发布脚本会自动重试一次，并且默认会优先走本机签名。
+- `sign.sh` 的本地可用性判断仍由 remote-mac-sign skill 负责：本机证书或 notary profile 缺失时会按 skill 设计自动兜底远程。
+
+---
+
+# 上一任务存档：v1.1.19 issues/release
 
 ## 目标
 
