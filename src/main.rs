@@ -32,10 +32,22 @@ enum UserEvent {
     ShowFind,
     Print, // route print through wry's native API (WKWebView ignores window.print())
     CheckUpdates,
+    UpdateCheckResult(UpdateCheckResult),
     SetTheme(ThemeChoice),
     OpenUrl(&'static str),
     RecentChanged,
     Ready, // first paint landed: inject hljs now; if bench mode, also exit
+}
+
+#[derive(Debug)]
+enum UpdateCheckResult {
+    Available {
+        tag: String,
+        url: String,
+        digest: Option<String>,
+    },
+    UpToDate,
+    Failed,
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -204,6 +216,39 @@ fn save_theme_choice(choice: ThemeChoice) {
     let dir = config_dir();
     let _ = fs::create_dir_all(&dir);
     let _ = fs::write(dir.join("theme.txt"), choice.as_str());
+}
+
+fn show_info_dialog(title: &str, description: &str) {
+    let _ = rfd::MessageDialog::new()
+        .set_level(rfd::MessageLevel::Info)
+        .set_title(title)
+        .set_description(description)
+        .show();
+}
+
+fn show_warning_dialog(title: &str, description: &str) {
+    let _ = rfd::MessageDialog::new()
+        .set_level(rfd::MessageLevel::Warning)
+        .set_title(title)
+        .set_description(description)
+        .show();
+}
+
+fn confirm_open_update(tag: &str) -> bool {
+    matches!(
+        rfd::MessageDialog::new()
+            .set_level(rfd::MessageLevel::Info)
+            .set_title("Update Available")
+            .set_description(format!(
+                "MD Preview {tag} is available. Open the release page to download it?"
+            ))
+            .set_buttons(rfd::MessageButtons::OkCancelCustom(
+                "Open Release".to_string(),
+                "Cancel".to_string(),
+            ))
+            .show(),
+        rfd::MessageDialogResult::Custom(label) if label == "Open Release"
+    )
 }
 
 fn load_window_geom() -> Option<WindowGeom> {
@@ -1323,6 +1368,170 @@ fn update_current_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct UpdateRelease {
+    tag: String,
+    url: String,
+    digest: Option<String>,
+}
+
+fn parse_version(value: &str) -> Option<Vec<u64>> {
+    let cleaned = value
+        .trim()
+        .trim_start_matches(['v', 'V'])
+        .split(['+', '-'])
+        .next()?;
+    if cleaned.is_empty() {
+        return None;
+    }
+    let mut parts = Vec::new();
+    for part in cleaned.split('.') {
+        if part.is_empty() || !part.chars().all(|ch| ch.is_ascii_digit()) {
+            return None;
+        }
+        parts.push(part.parse().ok()?);
+    }
+    Some(parts)
+}
+
+fn is_newer_version(candidate: &str, current: &str) -> bool {
+    let Some(next) = parse_version(candidate) else {
+        return false;
+    };
+    let Some(now) = parse_version(current) else {
+        return false;
+    };
+    let len = next.len().max(now.len());
+    for index in 0..len {
+        let a = *next.get(index).unwrap_or(&0);
+        let b = *now.get(index).unwrap_or(&0);
+        if a > b {
+            return true;
+        }
+        if a < b {
+            return false;
+        }
+    }
+    false
+}
+
+fn is_desktop_release_tag(tag: &str) -> bool {
+    let Some(version) = tag.trim().strip_prefix('v') else {
+        return false;
+    };
+    version.contains('.')
+        && version.chars().all(|ch| ch.is_ascii_digit() || ch == '.')
+        && parse_version(tag).is_some()
+}
+
+fn preferred_update_asset_name() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "MD-Preview-macOS-universal.dmg"
+    } else if cfg!(target_os = "windows") {
+        "MD-Preview-windows-x64.exe"
+    } else {
+        "MD-Preview-linux-x64.tar.gz"
+    }
+}
+
+fn select_update_release(payload: &str, current_version: &str) -> Option<UpdateRelease> {
+    let releases: serde_json::Value = serde_json::from_str(payload).ok()?;
+    let releases = releases.as_array()?;
+    let asset_name = preferred_update_asset_name();
+    let mut best: Option<UpdateRelease> = None;
+
+    for release in releases {
+        if release
+            .get("draft")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+            || release
+                .get("prerelease")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false)
+        {
+            continue;
+        }
+        let Some(tag) = release.get("tag_name").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        if !is_desktop_release_tag(tag) || !is_newer_version(tag, current_version) {
+            continue;
+        }
+
+        let html_url = release
+            .get("html_url")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or(GITHUB_URL);
+        let mut url = html_url;
+        let mut digest = None;
+        if let Some(assets) = release.get("assets").and_then(serde_json::Value::as_array) {
+            for asset in assets {
+                if asset.get("name").and_then(serde_json::Value::as_str) == Some(asset_name) {
+                    if let Some(download_url) = asset
+                        .get("browser_download_url")
+                        .and_then(serde_json::Value::as_str)
+                    {
+                        url = download_url;
+                    }
+                    digest = asset
+                        .get("digest")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_string);
+                    break;
+                }
+            }
+        }
+
+        let candidate = UpdateRelease {
+            tag: tag.to_string(),
+            url: url.to_string(),
+            digest,
+        };
+        if best
+            .as_ref()
+            .map(|current| is_newer_version(&candidate.tag, &current.tag))
+            .unwrap_or(true)
+        {
+            best = Some(candidate);
+        }
+    }
+
+    best
+}
+
+fn check_github_updates() -> UpdateCheckResult {
+    let output = std::process::Command::new("curl")
+        .args([
+            "-fsSL",
+            "--connect-timeout",
+            "5",
+            "--max-time",
+            "10",
+            "-H",
+            "Accept: application/vnd.github+json",
+            "https://api.github.com/repos/vorojar/md-preview/releases?per_page=20",
+        ])
+        .output();
+    let Ok(output) = output else {
+        return UpdateCheckResult::Failed;
+    };
+    if !output.status.success() {
+        return UpdateCheckResult::Failed;
+    }
+    let Ok(payload) = String::from_utf8(output.stdout) else {
+        return UpdateCheckResult::Failed;
+    };
+    match select_update_release(&payload, env!("CARGO_PKG_VERSION")) {
+        Some(release) => UpdateCheckResult::Available {
+            tag: release.tag,
+            url: release.url,
+            digest: release.digest,
+        },
+        None => UpdateCheckResult::UpToDate,
+    }
+}
+
 fn test_update_release_js() -> String {
     #[cfg(debug_assertions)]
     {
@@ -1482,6 +1691,8 @@ mod tests {
         assert!(page.contains("window.__mdPreviewShowFind = showFind"));
         assert!(page.contains("window.__mdPreviewToggleEdit"));
         assert!(page.contains("window.__mdPreviewCheckUpdates"));
+        assert!(page.contains("update-check-result:available"));
+        assert!(page.contains("update-check-result:"));
         assert!(page.contains("Cmd/Ctrl+F"));
         assert!(page.contains("body.editing #btn-open"));
         assert!(page.contains("ta.focus({ preventScroll: true })"));
@@ -1501,6 +1712,7 @@ mod tests {
         assert!(page.contains(".markdown-alert-title"));
         assert!(page.contains("background: #161b22"));
         assert!(page.contains(".mdp-mark"));
+        assert!(!page.contains("Local-first Markdown preview for AI-generated docs"));
     }
 
     #[test]
@@ -1530,6 +1742,36 @@ mod tests {
         assert!(!is_allowed_update_url(
             "https://github.com/other/project/releases/download/v1.0.0/app.dmg"
         ));
+    }
+
+    #[test]
+    fn update_versions_compare_semver_tags() {
+        assert!(is_newer_version("v1.1.21", "1.1.20"));
+        assert!(is_newer_version("v1.2.0", "1.1.99"));
+        assert!(!is_newer_version("v1.1.20", "1.1.21"));
+        assert!(!is_newer_version("v1.1.21", "1.1.21"));
+        assert!(!is_newer_version("not-a-version", "1.1.21"));
+    }
+
+    #[test]
+    fn update_release_selection_ignores_older_and_prerelease_versions() {
+        let payload = r#"[
+          {"tag_name":"v1.1.22-beta","draft":false,"prerelease":true,"html_url":"https://example.invalid/beta","assets":[]},
+          {"tag_name":"v1.1.20","draft":false,"prerelease":false,"html_url":"https://example.invalid/old","assets":[]},
+          {"tag_name":"v1.1.22","draft":false,"prerelease":false,"html_url":"https://example.invalid/new","assets":[
+            {"name":"MD-Preview-macOS-universal.dmg","browser_download_url":"https://example.invalid/app.dmg","digest":"sha256:abc"}
+          ]}
+        ]"#;
+
+        let release = select_update_release(payload, "1.1.21").unwrap();
+        assert_eq!(release.tag, "v1.1.22");
+        if cfg!(target_os = "macos") {
+            assert_eq!(release.url, "https://example.invalid/app.dmg");
+            assert_eq!(release.digest.as_deref(), Some("sha256:abc"));
+        } else {
+            assert_eq!(release.url, "https://example.invalid/new");
+        }
+        assert!(select_update_release(payload, "1.1.22").is_none());
     }
 
     #[test]
@@ -1706,13 +1948,12 @@ fn send_macos_menu_event(event: UserEvent) {
 #[cfg(target_os = "macos")]
 fn macos_menu_controller_class() -> &'static objc2::runtime::AnyClass {
     use objc2::runtime::{AnyClass, AnyObject, ClassBuilder, NSObject, Sel};
-    use objc2::{sel, AnyThread, ClassType};
+    use objc2::{sel, ClassType, MainThreadOnly};
     use objc2_app_kit::{
-        NSAboutPanelOptionApplicationName, NSAboutPanelOptionApplicationVersion,
-        NSAboutPanelOptionCredits, NSApplication, NSControlStateValueOff, NSControlStateValueOn,
-        NSMenuItem,
+        NSAlert, NSAlertStyle, NSButton, NSControlStateValueOff, NSControlStateValueOn, NSImage,
+        NSMenuItem, NSView,
     };
-    use objc2_foundation::{MainThreadMarker, NSAttributedString, NSDictionary, NSString};
+    use objc2_foundation::{MainThreadMarker, NSPoint, NSRect, NSSize, NSString};
     use std::sync::Once;
 
     extern "C" fn open_file(_: &AnyObject, _: Sel, _: &AnyObject) {
@@ -1767,33 +2008,82 @@ fn macos_menu_controller_class() -> &'static objc2::runtime::AnyClass {
         send_macos_menu_event(UserEvent::SetTheme(choice));
     }
 
-    extern "C" fn show_about(_: &AnyObject, _: Sel, _: &AnyObject) {
+    fn rect(x: f64, y: f64, width: f64, height: f64) -> NSRect {
+        NSRect::new(NSPoint::new(x, y), NSSize::new(width, height))
+    }
+
+    fn symbol_button(
+        symbol: &str,
+        fallback_title: &str,
+        tooltip: &str,
+        action: Sel,
+        target: &AnyObject,
+        mtm: MainThreadMarker,
+    ) -> objc2::rc::Retained<NSButton> {
+        let accessibility = NSString::from_str(tooltip);
+        let symbol_name = NSString::from_str(symbol);
+        let button = if let Some(image) =
+            NSImage::imageWithSystemSymbolName_accessibilityDescription(
+                &symbol_name,
+                Some(&accessibility),
+            ) {
+            unsafe {
+                NSButton::buttonWithImage_target_action(&image, Some(target), Some(action), mtm)
+            }
+        } else {
+            unsafe {
+                NSButton::buttonWithTitle_target_action(
+                    &NSString::from_str(fallback_title),
+                    Some(target),
+                    Some(action),
+                    mtm,
+                )
+            }
+        };
+        button.setBordered(false);
+        button.setToolTip(Some(&accessibility));
+        button
+    }
+
+    extern "C" fn show_about(controller: &AnyObject, _: Sel, _: &AnyObject) {
         let Some(mtm) = MainThreadMarker::new() else {
             return;
         };
-        let app = NSApplication::sharedApplication(mtm);
-        let app_name = NSString::from_str("MD Preview");
-        let version = NSString::from_str(env!("CARGO_PKG_VERSION"));
-        let credits_text = NSString::from_str(&format!(
-            "Local-first Markdown preview for AI-generated docs, README drafts, Mermaid diagrams, and KaTeX notes.\n\nWebsite: {WEBSITE_URL}\nGitHub: {GITHUB_URL}"
-        ));
-        let credits =
-            NSAttributedString::initWithString(NSAttributedString::alloc(), &credits_text);
-        let app_name_obj =
-            unsafe { &*(objc2::rc::Retained::as_ptr(&app_name) as *const AnyObject) };
-        let version_obj = unsafe { &*(objc2::rc::Retained::as_ptr(&version) as *const AnyObject) };
-        let credits_obj = unsafe { &*(objc2::rc::Retained::as_ptr(&credits) as *const AnyObject) };
-        let keys = unsafe {
-            [
-                NSAboutPanelOptionApplicationName,
-                NSAboutPanelOptionApplicationVersion,
-                NSAboutPanelOptionCredits,
-            ]
-        };
-        let options = NSDictionary::from_slices(&keys, &[app_name_obj, version_obj, credits_obj]);
-        unsafe {
-            app.orderFrontStandardAboutPanelWithOptions(&options);
-        }
+
+        let alert = NSAlert::new(mtm);
+        alert.setAlertStyle(NSAlertStyle::Informational);
+        alert.setMessageText(&NSString::from_str("MD Preview"));
+        alert.setInformativeText(&NSString::from_str(&format!(
+            "Version {}",
+            env!("CARGO_PKG_VERSION")
+        )));
+
+        let accessory = NSView::initWithFrame(NSView::alloc(mtm), rect(0.0, 0.0, 64.0, 28.0));
+        let home = symbol_button(
+            "house",
+            "Home",
+            "Home",
+            sel!(mdPreviewOpenWebsite:),
+            controller,
+            mtm,
+        );
+        home.setFrame(rect(4.0, 1.0, 26.0, 26.0));
+        accessory.addSubview(&home);
+
+        let github = symbol_button(
+            "chevron.left.forwardslash.chevron.right",
+            "GitHub",
+            "GitHub",
+            sel!(mdPreviewOpenGitHub:),
+            controller,
+            mtm,
+        );
+        github.setFrame(rect(34.0, 1.0, 26.0, 26.0));
+        accessory.addSubview(&github);
+        alert.setAccessoryView(Some(&accessory));
+        alert.addButtonWithTitle(&NSString::from_str("OK"));
+
+        alert.runModal();
     }
 
     static REGISTER_CLASS: Once = Once::new();
@@ -2668,12 +2958,45 @@ fn main() {
                 }
             } else if body == "check-updates" || body.starts_with("check-updates:\n") {
                 let payload = body.strip_prefix("check-updates:\n").unwrap_or("");
-                let mut parts = payload.splitn(3, '\n');
+                let mut parts = payload.splitn(4, '\n');
                 let download_url = parts.next().filter(|value| !value.is_empty());
                 let digest = parts.next().filter(|value| !value.is_empty());
+                let tag = parts.next().filter(|value| !value.is_empty());
                 let relaunch_file = file_path_for_ipc.lock().unwrap().clone();
                 if !check_native_updates(download_url, digest, relaunch_file) {
-                    let _ = open::that("https://github.com/vorojar/md-preview/releases/latest");
+                    if let Some(url) = download_url.filter(|url| is_allowed_update_url(url)) {
+                        if confirm_open_update(tag.unwrap_or("update")) {
+                            let _ = open::that(url);
+                        }
+                    } else {
+                        show_warning_dialog(
+                            "Update Unavailable",
+                            "MD Preview could not start the updater for this release.",
+                        );
+                    }
+                }
+            } else if let Some(result) = body.strip_prefix("update-check-result:") {
+                let mut parts = result.splitn(4, '\n');
+                match parts.next().unwrap_or("") {
+                    "available" => {
+                        let tag = parts.next().unwrap_or("update").to_string();
+                        let url = parts.next().unwrap_or("").to_string();
+                        let digest = parts
+                            .next()
+                            .filter(|value| !value.is_empty())
+                            .map(str::to_string);
+                        let _ = proxy_for_ipc.send_event(UserEvent::UpdateCheckResult(
+                            UpdateCheckResult::Available { tag, url, digest },
+                        ));
+                    }
+                    "none" => {
+                        let _ = proxy_for_ipc
+                            .send_event(UserEvent::UpdateCheckResult(UpdateCheckResult::UpToDate));
+                    }
+                    _ => {
+                        let _ = proxy_for_ipc
+                            .send_event(UserEvent::UpdateCheckResult(UpdateCheckResult::Failed));
+                    }
                 }
             } else if let Some(content) = body.strip_prefix("save:") {
                 let fp = file_path_for_ipc.lock().unwrap().clone();
@@ -2890,11 +3213,40 @@ fn main() {
                 let _ = webview.print();
             }
             TaoEvent::UserEvent(UserEvent::CheckUpdates) => {
-                let relaunch_file = file_path_for_event.lock().unwrap().clone();
-                if !check_native_updates(None, None, relaunch_file) {
-                    let _ = open::that("https://github.com/vorojar/md-preview/releases/latest");
-                }
+                let proxy = proxy.clone();
+                std::thread::spawn(move || {
+                    let _ = proxy.send_event(UserEvent::UpdateCheckResult(check_github_updates()));
+                });
             }
+            TaoEvent::UserEvent(UserEvent::UpdateCheckResult(result)) => match result {
+                UpdateCheckResult::Available { tag, url, digest } => {
+                    if is_allowed_update_url(&url) && confirm_open_update(&tag) {
+                        let relaunch_file = file_path_for_event.lock().unwrap().clone();
+                        if !check_native_updates(
+                            Some(url.as_str()),
+                            digest.as_deref(),
+                            relaunch_file,
+                        ) {
+                            let _ = open::that(url);
+                        }
+                    }
+                }
+                UpdateCheckResult::UpToDate => {
+                    show_info_dialog(
+                        "MD Preview Is Up to Date",
+                        &format!(
+                            "You are using the latest version: {}.",
+                            env!("CARGO_PKG_VERSION")
+                        ),
+                    );
+                }
+                UpdateCheckResult::Failed => {
+                    show_warning_dialog(
+                        "Could Not Check for Updates",
+                        "MD Preview could not reach the update service. Please try again later.",
+                    );
+                }
+            },
             TaoEvent::UserEvent(UserEvent::SetTheme(choice)) => {
                 save_theme_choice(choice);
                 window.set_theme(choice.tao_theme());

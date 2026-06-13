@@ -125,6 +125,20 @@
     var maxAgeMs = config.maxAgeMs || 24 * 60 * 60 * 1000;
     var timeoutMs = config.timeoutMs || 3500;
 
+    function postUpdateResult(kind, release) {
+      if (!window.ipc) return;
+      if (kind === 'available') {
+        var asset = selectDownloadAsset(release);
+        window.ipc.postMessage([
+          'update-check-result:available',
+          release && release.tag_name || '',
+          release && selectDownloadUrl(release) || latestUrl,
+          asset && asset.digest || release && release.download_digest || ''
+        ].join('\n'));
+      }
+      else window.ipc.postMessage('update-check-result:' + kind);
+    }
+
     function openRelease() {
       var url = button.dataset.releaseUrl || latestUrl;
       if (config.nativeUpdater && window.ipc) {
@@ -160,6 +174,48 @@
     button.addEventListener('click', openRelease);
 
     window.__mdPreviewApplyUpdateRelease = applyRelease;
+    window.__mdPreviewCheckUpdates = function(showDialog) {
+      var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      var timer = controller ? setTimeout(function() { controller.abort(); }, timeoutMs) : null;
+      var opts = {
+        cache: 'no-store',
+        headers: { Accept: 'application/vnd.github+json' }
+      };
+      if (controller) opts.signal = controller.signal;
+
+      fetch(apiUrl, opts)
+        .then(function(response) {
+          if (!response.ok) throw new Error('update check failed');
+          return response.json();
+        })
+        .then(function(payload) {
+          var release = selectDesktopRelease(payload, config.currentVersion);
+          if (release) {
+            release.download_digest = (function() {
+              var asset = selectDownloadAsset(release);
+              return asset && asset.digest;
+            })();
+          }
+          if (!showDialog) {
+            storageSet(storageKey, JSON.stringify({
+              checkedAt: Date.now(),
+              currentVersion: config.currentVersion,
+              tagName: release && release.tag_name,
+              htmlUrl: release && release.html_url,
+              downloadUrl: release && selectDownloadUrl(release),
+              downloadDigest: release && release.download_digest
+            }));
+          }
+          applyRelease(release);
+          if (showDialog) postUpdateResult(release ? 'available' : 'none', release);
+        })
+        .catch(function() {
+          if (showDialog) postUpdateResult('failed');
+        })
+        .then(function() {
+          if (timer) clearTimeout(timer);
+        });
+    };
 
     scheduleAfterFirstPaint(function() {
       var now = Date.now();
@@ -183,44 +239,7 @@
         } catch (e) {}
       }
 
-      var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      var timer = controller ? setTimeout(function() { controller.abort(); }, timeoutMs) : null;
-      var opts = {
-        cache: 'no-store',
-        headers: { Accept: 'application/vnd.github+json' }
-      };
-      if (controller) opts.signal = controller.signal;
-
-      fetch(apiUrl, opts)
-        .then(function(response) {
-          if (!response.ok) throw new Error('update check failed');
-          return response.json();
-        })
-        .then(function(payload) {
-          var release = selectDesktopRelease(payload, config.currentVersion);
-          storageSet(storageKey, JSON.stringify({
-            checkedAt: now,
-            currentVersion: config.currentVersion,
-            tagName: release && release.tag_name,
-            htmlUrl: release && release.html_url,
-            downloadUrl: release && selectDownloadUrl(release),
-            downloadDigest: (function() {
-              var asset = selectDownloadAsset(release);
-              return asset && asset.digest;
-            })()
-          }));
-          if (release) {
-            release.download_digest = (function() {
-              var asset = selectDownloadAsset(release);
-              return asset && asset.digest;
-            })();
-          }
-          applyRelease(release);
-        })
-        .catch(function() {})
-        .then(function() {
-          if (timer) clearTimeout(timer);
-        });
+      window.__mdPreviewCheckUpdates(false);
     });
   }
 
