@@ -1226,6 +1226,7 @@ body.editing #btn-print {{ display: none; }}
 	      return;
 	    }}
 	    if ((e.metaKey || e.ctrlKey) && (e.key === 'f' || e.key === 'F')) {{
+	      if (inEdit()) return;
 	      e.preventDefault();
 	      showFind();
 	      return;
@@ -1694,6 +1695,7 @@ mod tests {
         assert!(page.contains("update-check-result:available"));
         assert!(page.contains("update-check-result:"));
         assert!(page.contains("Cmd/Ctrl+F"));
+        assert!(page.contains("if (inEdit()) return;\n\t      e.preventDefault();\n\t      showFind();"));
         assert!(page.contains("body.editing #btn-open"));
         assert!(page.contains("ta.focus({ preventScroll: true })"));
         assert!(page.contains("window.__setEmptyPreview"));
@@ -2314,8 +2316,8 @@ fn install_macos_menu(proxy: EventLoopProxy<UserEvent>, theme: ThemeChoice) {
     view_menu.addItem(&command_item(
         "Find",
         sel!(mdPreviewShowFind:),
-        "f",
-        NSEventModifierFlags::Command,
+        "",
+        NSEventModifierFlags::empty(),
         controller,
         mtm,
     ));

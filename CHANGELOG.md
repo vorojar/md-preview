@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.22
+
+- Fixed `Cmd/Ctrl+F` in source edit mode by letting the WebView/editor native find action handle editing, while keeping the custom find bar for rendered previews.
+
 ## 1.1.19
 
 - Added GitHub-style alert rendering for `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, and `[!CAUTION]` blockquotes on desktop and mobile.
