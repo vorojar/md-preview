@@ -869,6 +869,8 @@ body {{
 #preview .markdown-alert-warning .markdown-alert-title {{ color: #9a6700; }}
 #preview .markdown-alert-caution .markdown-alert-title {{ color: #cf222e; }}
 #preview .mdp-mark {{ border-radius: 3px; padding: 0 0.12em; background: #fff2a8; color: inherit; }}
+#preview mark.search-hit {{ border-radius: 3px; padding: 0 0.12em; background: #fff2a8; color: inherit; }}
+#preview mark.search-hit.current {{ background: #ffcc4d; color: #1a1a1a; }}
 #preview table {{ border-collapse: collapse; width: 100%; }}
 #preview .mdp-table-wrap {{
   width: min(calc(100vw - 64px), 1280px);
@@ -1001,6 +1003,10 @@ body.editing #btn-open,
 body.editing #btn-search,
 body.editing #btn-print {{ display: none; }}
 
+@page {{
+  margin: 12mm;
+}}
+
 @media print {{
   .toolbar, #editor {{ display: none !important; }}
   #preview {{ display: block !important; }}
@@ -1053,6 +1059,9 @@ body.editing #btn-print {{ display: none; }}
 	  var composingFind = false;
 	  var pendingFindTimer = 0;
 	  var FIND_DEBOUNCE_MS = 300;
+	  var findHits = [];
+	  var currentFindHit = -1;
+	  var lastFindQuery = '';
 
 	  btnOpen.innerHTML = ICON_OPEN;
 	  btnSearch.innerHTML = ICON_SEARCH;
@@ -1091,10 +1100,25 @@ body.editing #btn-print {{ display: none; }}
 	  function hideFind() {{
 	    document.body.classList.remove('finding');
 	    findInput.value = '';
-	    findState.textContent = '';
+	    clearFindHits();
 	    if (pendingFindTimer) {{ clearTimeout(pendingFindTimer); pendingFindTimer = 0; }}
 	    var sel = window.getSelection && window.getSelection();
 	    if (sel && sel.removeAllRanges) sel.removeAllRanges();
+	  }}
+	  function updateFindState() {{
+	    findState.textContent = findHits.length ? (currentFindHit + 1) + '/' + findHits.length : '';
+	  }}
+	  function clearFindHits() {{
+	    findHits.forEach(function(mark) {{
+	      var parent = mark.parentNode;
+	      if (!parent) return;
+	      parent.replaceChild(document.createTextNode(mark.textContent), mark);
+	      parent.normalize();
+	    }});
+	    findHits = [];
+	    currentFindHit = -1;
+	    lastFindQuery = '';
+	    updateFindState();
 	  }}
 	  function focusFindInput(selectionStart, selectionEnd) {{
 	    if (!document.body.classList.contains('finding')) return;
@@ -1114,21 +1138,83 @@ body.editing #btn-print {{ display: none; }}
 	      setTimeout(function() {{ focusFindInput(selectionStart, selectionEnd); }}, 80);
 	    }});
 	  }}
+	  function selectFindHit(index) {{
+	    if (!findHits.length) {{
+	      currentFindHit = -1;
+	      updateFindState();
+	      return;
+	    }}
+	    if (currentFindHit >= 0 && findHits[currentFindHit]) {{
+	      findHits[currentFindHit].classList.remove('current');
+	    }}
+	    currentFindHit = (index + findHits.length) % findHits.length;
+	    var hit = findHits[currentFindHit];
+	    hit.classList.add('current');
+	    hit.scrollIntoView({{ block: 'center', inline: 'nearest' }});
+	    updateFindState();
+	  }}
+	  function runFindQuery(query) {{
+	    clearFindHits();
+	    query = String(query || '').trim();
+	    if (!query) return;
+	    lastFindQuery = query;
+	    var needle = query.toLowerCase();
+	    var previewEl = document.getElementById('preview');
+	    var walker = document.createTreeWalker(previewEl, NodeFilter.SHOW_TEXT, {{
+	      acceptNode: function(node) {{
+	        if (!node.nodeValue || node.nodeValue.toLowerCase().indexOf(needle) < 0) {{
+	          return NodeFilter.FILTER_REJECT;
+	        }}
+	        var parent = node.parentElement;
+	        if (!parent || parent.closest('script,style,svg,mark.search-hit,.katex,.mdp-mermaid')) {{
+	          return NodeFilter.FILTER_REJECT;
+	        }}
+	        return NodeFilter.FILTER_ACCEPT;
+	      }}
+	    }});
+	    var nodes = [];
+	    while (walker.nextNode()) nodes.push(walker.currentNode);
+	    nodes.forEach(function(node) {{
+	      var text = node.nodeValue;
+	      var lower = text.toLowerCase();
+	      var fragment = document.createDocumentFragment();
+	      var start = 0;
+	      var index;
+	      while ((index = lower.indexOf(needle, start)) >= 0) {{
+	        if (index > start) fragment.appendChild(document.createTextNode(text.slice(start, index)));
+	        var mark = document.createElement('mark');
+	        mark.className = 'search-hit';
+	        mark.textContent = text.slice(index, index + query.length);
+	        findHits.push(mark);
+	        fragment.appendChild(mark);
+	        start = index + query.length;
+	      }}
+	      if (start < text.length) fragment.appendChild(document.createTextNode(text.slice(start)));
+	      node.parentNode.replaceChild(fragment, node);
+	    }});
+	    selectFindHit(0);
+	  }}
 	  function runFind(backward) {{
 	    var q = findInput.value;
-	    if (!q) {{ findState.textContent = ''; return; }}
+	    if (!q) {{ clearFindHits(); return; }}
 	    var hadFocus = document.activeElement === findInput;
 	    var selectionStart = findInput.selectionStart;
 	    var selectionEnd = findInput.selectionEnd;
-	    var found = window.find ? window.find(q, false, !!backward, true, false, false, false) : false;
-	    findState.textContent = found ? '' : '0';
+	    var normalized = String(q || '').trim();
+	    if (!normalized) {{
+	      clearFindHits();
+	    }} else if (normalized !== lastFindQuery) {{
+	      runFindQuery(normalized);
+	    }} else {{
+	      selectFindHit(currentFindHit + (backward ? -1 : 1));
+	    }}
 	    if (hadFocus) restoreFindInput(selectionStart, selectionEnd);
 	  }}
 	  function scheduleFind() {{
 	    if (pendingFindTimer) clearTimeout(pendingFindTimer);
 	    pendingFindTimer = setTimeout(function() {{
 	      pendingFindTimer = 0;
-	      if (!composingFind) runFind(false);
+	      if (!composingFind) runFindQuery(findInput.value);
 	    }}, FIND_DEBOUNCE_MS);
 	  }}
   // Grow textarea height to its content so the page (html) owns the sole
@@ -1705,6 +1791,10 @@ mod tests {
         assert!(page.contains("e.isComposing"));
         assert!(page.contains("focusFindInput"));
         assert!(page.contains("FIND_DEBOUNCE_MS = 300"));
+        assert!(page.contains("document.createTreeWalker(previewEl, NodeFilter.SHOW_TEXT"));
+        assert!(page.contains("mark.className = 'search-hit'"));
+        assert!(page.contains("selectFindHit(currentFindHit + (backward ? -1 : 1))"));
+        assert!(page.contains("#preview mark.search-hit.current"));
         assert!(page.contains("restoreFindInput(selectionStart, selectionEnd)"));
         assert!(page.contains("findInput.setSelectionRange(selectionStart, selectionEnd)"));
         assert!(page.contains("body.empty .toolbar.has-update"));

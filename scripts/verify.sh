@@ -68,6 +68,19 @@ if [ -f release-sign.sh ]; then
   ran=1
 fi
 
+if [ -f src/main.rs ]; then
+  echo "[agent-verify] desktop print stylesheet"
+  python3 - <<'PY'
+from pathlib import Path
+src = Path("src/main.rs").read_text()
+if "@page {{\n  margin: 12mm;\n}}" not in src:
+    raise SystemExit("src/main.rs must set @page margin: 12mm for native desktop printing")
+if "@media print {{" not in src or "#app {{ max-width: none; padding: 0; }}" not in src:
+    raise SystemExit("src/main.rs must keep print media rules focused on preview output")
+PY
+  ran=1
+fi
+
 if [ -f Cargo.toml ]; then
   if command -v cargo >/dev/null 2>&1; then
     echo "[agent-verify] cargo test"
@@ -89,6 +102,22 @@ if [ -f scripts/verify-anchor-navigation.mjs ]; then
     ran=1
   else
     echo "[agent-verify] skip anchor navigation: playwright unavailable"
+  fi
+fi
+
+if [ -f scripts/verify-desktop-search.mjs ]; then
+  BUNDLED_NODE="/Users/longjiewu/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
+  BUNDLED_NODE_MODULES="/Users/longjiewu/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules"
+  if [ -x "$BUNDLED_NODE" ] && [ -d "$BUNDLED_NODE_MODULES" ]; then
+    echo "[agent-verify] desktop search"
+    NODE_PATH="$BUNDLED_NODE_MODULES" "$BUNDLED_NODE" scripts/verify-desktop-search.mjs
+    ran=1
+  elif command -v node >/dev/null 2>&1 && node -e "import('playwright')" >/dev/null 2>&1; then
+    echo "[agent-verify] desktop search"
+    node scripts/verify-desktop-search.mjs
+    ran=1
+  else
+    echo "[agent-verify] skip desktop search: playwright unavailable"
   fi
 fi
 

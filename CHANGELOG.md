@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.23
+
+- Fixed desktop print margins on macOS by adding an explicit `@page` margin to the rendered preview print stylesheet.
+- Replaced desktop preview search's fragile `window.find()` dependency with deterministic in-page hit marking and navigation, restoring reliable `Cmd/Ctrl+F` search on macOS WebView.
+- Added release verification coverage for desktop print margins and desktop search.
+
 ## 1.1.22
 
 - Fixed `Cmd/Ctrl+F` in source edit mode by letting the WebView/editor native find action handle editing, while keeping the custom find bar for rendered previews.
