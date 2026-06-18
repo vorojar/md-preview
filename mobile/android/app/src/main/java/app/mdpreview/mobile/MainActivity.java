@@ -1,7 +1,6 @@
 package app.mdpreview.mobile;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
@@ -15,7 +14,6 @@ import android.os.Parcelable;
 import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
 import android.print.PrintManager;
-import android.provider.DocumentsContract;
 import android.provider.OpenableColumns;
 import android.webkit.ValueCallback;
 import android.webkit.JavascriptInterface;
@@ -42,15 +40,12 @@ import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.UUID;
 
 public final class MainActivity extends Activity {
     private static final int OPEN_DOCUMENT_REQUEST = 7;
-    private static final int OPEN_TREE_REQUEST = 8;
     private static final String RECENT_PREFS = "recent";
     private static final String RECENT_FILES = "files";
-    private static final String MARKDOWN_TREE_URI = "markdown_tree_uri";
     private static final String[] MARKDOWN_MIME_TYPES = new String[] {
         "text/markdown",
         "text/x-markdown",
@@ -76,7 +71,6 @@ public final class MainActivity extends Activity {
     };
     private WebView webView;
     private Uri pendingUri;
-    private final ArrayList<String> markdownBrowserBackStack = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -111,15 +105,6 @@ public final class MainActivity extends Activity {
                 }
                 persistReadPermission(uri, data.getFlags());
                 openUri(uri);
-            }
-        }
-        if (requestCode == OPEN_TREE_REQUEST && resultCode == RESULT_OK && data != null) {
-            Uri treeUri = data.getData();
-            if (treeUri != null) {
-                persistTreePermission(treeUri, data.getFlags());
-                recentPrefs().edit().putString(MARKDOWN_TREE_URI, treeUri.toString()).apply();
-                markdownBrowserBackStack.clear();
-                showMarkdownBrowser(treeUri, DocumentsContract.getTreeDocumentId(treeUri));
             }
         }
     }
@@ -307,29 +292,14 @@ public final class MainActivity extends Activity {
 
     private boolean isMarkdownDocument(Uri uri) {
         String name = safeDisplayName(uri).toLowerCase(java.util.Locale.ROOT);
-        if (isMarkdownFileName(name)) {
+        if (name.endsWith(".md")
+            || name.endsWith(".markdown")
+            || name.endsWith(".mdown")
+            || name.endsWith(".mkd")) {
             return true;
         }
 
         String mimeType = getContentResolver().getType(uri);
-        return isMarkdownMimeType(mimeType);
-    }
-
-    private boolean isMarkdownEntry(String name, String mimeType) {
-        if (name != null && isMarkdownFileName(name.toLowerCase(java.util.Locale.ROOT))) {
-            return true;
-        }
-        return isMarkdownMimeType(mimeType);
-    }
-
-    private boolean isMarkdownFileName(String name) {
-        return name.endsWith(".md")
-            || name.endsWith(".markdown")
-            || name.endsWith(".mdown")
-            || name.endsWith(".mkd");
-    }
-
-    private boolean isMarkdownMimeType(String mimeType) {
         if (mimeType == null) {
             return false;
         }
@@ -374,171 +344,10 @@ public final class MainActivity extends Activity {
         }
     }
 
-    @SuppressWarnings("deprecation")
-    private void openDocumentTreePicker() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
-            | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-            | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
-        try {
-            startActivityForResult(intent, OPEN_TREE_REQUEST);
-        } catch (ActivityNotFoundException ignored) {
-            openDocumentPicker();
-        }
-    }
-
-    private void openMarkdownBrowser() {
-        Uri treeUri = savedMarkdownTreeUri();
-        if (treeUri == null) {
-            showOpenSourceDialog();
-            return;
-        }
-        String rootDocumentId;
-        try {
-            rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri);
-        } catch (IllegalArgumentException e) {
-            recentPrefs().edit().remove(MARKDOWN_TREE_URI).apply();
-            showOpenSourceDialog();
-            return;
-        }
-        markdownBrowserBackStack.clear();
-        showMarkdownBrowser(treeUri, rootDocumentId);
-    }
-
-    private Uri savedMarkdownTreeUri() {
-        String raw = recentPrefs().getString(MARKDOWN_TREE_URI, "");
-        if (raw == null || raw.isEmpty()) {
-            return null;
-        }
-        return Uri.parse(raw);
-    }
-
-    private void showOpenSourceDialog() {
-        String[] options = new String[] {
-            "Choose Markdown folder",
-            "System picker"
-        };
-        new AlertDialog.Builder(this)
-            .setTitle("Open Markdown")
-            .setItems(options, (dialog, which) -> {
-                if (which == 0) {
-                    openDocumentTreePicker();
-                    return;
-                }
-                openDocumentPicker();
-            })
-            .show();
-    }
-
-    private void showMarkdownBrowser(Uri treeUri, String documentId) {
-        ArrayList<MarkdownBrowserItem> items;
-        try {
-            items = markdownBrowserItems(treeUri, documentId);
-        } catch (RuntimeException e) {
-            recentPrefs().edit().remove(MARKDOWN_TREE_URI).apply();
-            Toast.makeText(this, "Choose a Markdown folder", Toast.LENGTH_SHORT).show();
-            showOpenSourceDialog();
-            return;
-        }
-
-        ArrayList<MarkdownBrowserItem> actions = new ArrayList<>();
-        if (!markdownBrowserBackStack.isEmpty()) {
-            actions.add(MarkdownBrowserItem.parent());
-        }
-        actions.addAll(items);
-        if (actions.isEmpty()) {
-            actions.add(MarkdownBrowserItem.empty());
-        }
-
-        CharSequence[] labels = new CharSequence[actions.size()];
-        for (int i = 0; i < actions.size(); i++) {
-            labels[i] = actions.get(i).label;
-        }
-
-        new AlertDialog.Builder(this)
-            .setTitle("Markdown files")
-            .setItems(labels, (dialog, which) -> {
-                MarkdownBrowserItem item = actions.get(which);
-                if (item.empty) {
-                    return;
-                }
-                if (item.parent) {
-                    String parentDocumentId = markdownBrowserBackStack.remove(markdownBrowserBackStack.size() - 1);
-                    showMarkdownBrowser(treeUri, parentDocumentId);
-                    return;
-                }
-                if (item.directory) {
-                    markdownBrowserBackStack.add(documentId);
-                    showMarkdownBrowser(treeUri, item.documentId);
-                    return;
-                }
-                if (item.uri != null) {
-                    openUri(item.uri);
-                }
-            })
-            .setNeutralButton("Change folder", (dialog, which) -> openDocumentTreePicker())
-            .setNegativeButton("System picker", (dialog, which) -> openDocumentPicker())
-            .show();
-    }
-
-    private ArrayList<MarkdownBrowserItem> markdownBrowserItems(Uri treeUri, String documentId) {
-        Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, documentId);
-        String[] projection = new String[] {
-            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-            DocumentsContract.Document.COLUMN_MIME_TYPE
-        };
-
-        ArrayList<MarkdownBrowserItem> items = new ArrayList<>();
-        try (Cursor cursor = getContentResolver().query(childrenUri, projection, null, null, null)) {
-            if (cursor == null) {
-                return items;
-            }
-            int idIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID);
-            int nameIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME);
-            int mimeIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE);
-            while (cursor.moveToNext()) {
-                if (idIndex < 0 || nameIndex < 0 || mimeIndex < 0) {
-                    continue;
-                }
-                String childDocumentId = cursor.getString(idIndex);
-                String name = cursor.getString(nameIndex);
-                String mimeType = cursor.getString(mimeIndex);
-                if (childDocumentId == null || name == null || name.isEmpty()) {
-                    continue;
-                }
-                Uri uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, childDocumentId);
-                if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mimeType)) {
-                    items.add(MarkdownBrowserItem.directory("[Dir] " + name, childDocumentId));
-                } else if (isMarkdownEntry(name, mimeType)) {
-                    items.add(MarkdownBrowserItem.file(name, uri));
-                }
-            }
-        }
-        Collections.sort(items, (left, right) -> {
-            if (left.directory != right.directory) {
-                return left.directory ? -1 : 1;
-            }
-            return left.label.compareToIgnoreCase(right.label);
-        });
-        return items;
-    }
-
     private void persistReadPermission(Uri uri, int flags) {
         int readFlag = Intent.FLAG_GRANT_READ_URI_PERMISSION;
         int persistableFlag = Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION;
         if ((flags & readFlag) == 0 || (flags & persistableFlag) == 0) {
-            return;
-        }
-        try {
-            getContentResolver().takePersistableUriPermission(uri, readFlag);
-        } catch (SecurityException ignored) {
-        }
-    }
-
-    private void persistTreePermission(Uri uri, int flags) {
-        int readFlag = Intent.FLAG_GRANT_READ_URI_PERMISSION;
-        if ((flags & readFlag) == 0) {
             return;
         }
         try {
@@ -768,51 +577,10 @@ public final class MainActivity extends Activity {
         evaluate("window.MDPreview && window.MDPreview.setRecent(" + recentFiles() + ");");
     }
 
-    private static final class MarkdownBrowserItem {
-        final String label;
-        final Uri uri;
-        final String documentId;
-        final boolean directory;
-        final boolean parent;
-        final boolean empty;
-
-        private MarkdownBrowserItem(
-            String label,
-            Uri uri,
-            String documentId,
-            boolean directory,
-            boolean parent,
-            boolean empty
-        ) {
-            this.label = label;
-            this.uri = uri;
-            this.documentId = documentId;
-            this.directory = directory;
-            this.parent = parent;
-            this.empty = empty;
-        }
-
-        static MarkdownBrowserItem directory(String label, String documentId) {
-            return new MarkdownBrowserItem(label, null, documentId, true, false, false);
-        }
-
-        static MarkdownBrowserItem file(String label, Uri uri) {
-            return new MarkdownBrowserItem(label, uri, null, false, false, false);
-        }
-
-        static MarkdownBrowserItem parent() {
-            return new MarkdownBrowserItem("..", null, null, false, true, false);
-        }
-
-        static MarkdownBrowserItem empty() {
-            return new MarkdownBrowserItem("No Markdown files in this folder", null, null, false, false, true);
-        }
-    }
-
     private final class Bridge {
         @JavascriptInterface
         public void openFile() {
-            runOnUiThread(MainActivity.this::openMarkdownBrowser);
+            runOnUiThread(MainActivity.this::openDocumentPicker);
         }
 
         @JavascriptInterface

@@ -25,9 +25,6 @@ python3 -m json.tool mobile/ios/MDPreviewMobile/Assets.xcassets/AppIcon.appicons
 
 ANDROID_ACTIVITY="mobile/android/app/src/main/java/app/mdpreview/mobile/MainActivity.java"
 grep -F 'intent.setType("text/*")' "$ANDROID_ACTIVITY" >/dev/null || fail "Android Open File picker must request text MIME"
-grep -F 'Intent.ACTION_OPEN_DOCUMENT_TREE' "$ANDROID_ACTIVITY" >/dev/null || fail "Android custom Markdown browser must request a user-selected folder"
-grep -F 'DocumentsContract.buildChildDocumentsUriUsingTree' "$ANDROID_ACTIVITY" >/dev/null || fail "Android custom Markdown browser must list folder children"
-grep -F 'MarkdownBrowserItem.file(name, uri)' "$ANDROID_ACTIVITY" >/dev/null || fail "Android custom Markdown browser must expose filtered files"
 if grep -F 'intent.setType("*/*")' "$ANDROID_ACTIVITY" >/dev/null; then
   fail "Android Open File picker must not request */*"
 fi

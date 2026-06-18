@@ -1,10 +1,5 @@
 # Changelog
 
-## mobile-android-v1.0.10
-
-- Added an Android in-app Markdown browser backed by Android's folder access grant, so Open can show only folders and Markdown files instead of relying entirely on OEM file picker filtering.
-- Kept the system picker as a fallback from the Markdown browser for one-off files from providers such as chat apps, cloud drives, or Recent.
-
 ## mobile-android-v1.0.9
 
 - Changed the Android in-app Open File picker to request `text/*` with Markdown-related MIME hints so OEM file pickers that do not recognize `text/markdown` do not fall back to showing every recent file type.
