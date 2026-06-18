@@ -5,12 +5,13 @@
 [![GitHub stars](https://img.shields.io/github/stars/vorojar/md-preview)](https://github.com/vorojar/md-preview/stargazers)
 [![Release](https://img.shields.io/github/v/release/vorojar/md-preview)](https://github.com/vorojar/md-preview/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20Android-lightgrey)](https://github.com/vorojar/md-preview/releases)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20iOS%20%7C%20Android-lightgrey)](https://github.com/vorojar/md-preview/releases)
+[![App Store](https://img.shields.io/badge/App%20Store-Local%20Markdown%20Preview-blue?logo=appstore)](https://apps.apple.com/cn/app/local-markdown-preview/id6779451523)
 [![Binary size](https://img.shields.io/badge/binary-~5MB-green)](https://github.com/vorojar/md-preview/releases)
 
 > A native Markdown previewer for AI-generated docs, README files, plans, Mermaid diagrams, and technical notes. Open the file now, not a whole IDE.
 
-MD Preview is a fast, local-first Markdown viewer built with **Rust** and the system **WebView** on desktop, plus native mobile shells for opening Markdown from Files, WeChat, WeCom, and Android share sheets. It does not bundle Chromium, does not require Electron, and keeps all rendering assets offline. Drop in a Markdown file, open one from the terminal, or keep it beside Cursor, Claude Code, Codex, VS Code, Vim, Zed, or any editor that writes Markdown.
+MD Preview is a fast, local-first Markdown viewer built with **Rust** and the system **WebView** on desktop, plus native iOS and Android shells for opening Markdown from Files, WeChat, WeCom, and system share sheets. It does not bundle Chromium, does not require Electron, and keeps all rendering assets offline. Drop in a Markdown file, open one from the terminal, or keep it beside Cursor, Claude Code, Codex, VS Code, Vim, Zed, or any editor that writes Markdown.
 
 ![MD Preview screenshot](https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/hero.jpg)
 
@@ -42,9 +43,10 @@ Get the latest build from [GitHub Releases](https://github.com/vorojar/md-previe
 | macOS | `MD-Preview-macOS-universal.dmg` | Universal app for Apple Silicon and Intel. Releases are signed and notarized. |
 | Windows | `MD-Preview-windows-x64.exe` | Single-file app. The in-app updater downloads the next exe, verifies its SHA-256 digest, replaces itself, and relaunches. |
 | Linux | `MD-Preview-linux-x64.tar.gz` | Requires the system WebKitGTK runtime. |
+| iOS / iPadOS | [Local Markdown Preview on the App Store](https://apps.apple.com/cn/app/local-markdown-preview/id6779451523) | Native iPhone and iPad viewer for opening Markdown from Files and the iOS share sheet. |
 | Android | `MD-Preview-Android.apk` | Native Android viewer for opening Markdown files from Files, WeChat, WeCom, and share sheets. |
 
-Android builds are published as separate mobile releases, for example [mobile-android-v1.0.7](https://github.com/vorojar/md-preview/releases/tag/mobile-android-v1.0.7). iOS is implemented in `mobile/ios` and is waiting for App Store/TestFlight distribution.
+Android builds are published as separate mobile releases, for example [mobile-android-v1.0.7](https://github.com/vorojar/md-preview/releases/tag/mobile-android-v1.0.7). The iOS build is now available on the App Store as [Local Markdown Preview](https://apps.apple.com/cn/app/local-markdown-preview/id6779451523).
 
 You can also build from source:
 
@@ -75,14 +77,14 @@ md-preview
 
 MD Preview accepts `.md` and `.txt` files through drag and drop, the open dialog, recent files, or the command line. Relative images are resolved from the Markdown file's directory, so local documentation folders render naturally.
 
-On Android, MD Preview appears in the system "Open with" and share flows for Markdown files. Recent files are cached privately inside the app, so files opened from temporary providers such as WeChat or WeCom remain available later; stale recent entries are removed safely instead of crashing.
+On iPhone and iPad, Local Markdown Preview opens Markdown and plain-text files from Files and the iOS share sheet. On Android, MD Preview appears in the system "Open with" and share flows for Markdown files. Recent files are cached privately inside the app, so files opened from temporary providers such as WeChat or WeCom remain available later; stale recent entries are removed safely instead of crashing.
 
 ## Features
 
 | Feature | What it means |
 |---|---|
 | Start screen | Empty launches show Open File and local recent files, so the app is useful before anything is loaded. |
-| Mobile open | Android can open Markdown from Files, WeChat, WeCom, and Android share sheets; iOS support lives under `mobile/ios`. |
+| Mobile open | iOS opens Markdown from Files and the share sheet; Android can open Markdown from Files, WeChat, WeCom, and Android share sheets. |
 | Drag and drop | Drop a Markdown file into the window and it opens immediately. |
 | CLI open | `md-preview path/to/file.md` opens directly from a shell. |
 | Find in preview | `Cmd/Ctrl+F` opens a compact search bar for the rendered document. |

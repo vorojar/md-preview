@@ -5,12 +5,13 @@
 [![GitHub stars](https://img.shields.io/github/stars/vorojar/md-preview)](https://github.com/vorojar/md-preview/stargazers)
 [![Release](https://img.shields.io/github/v/release/vorojar/md-preview)](https://github.com/vorojar/md-preview/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20Android-lightgrey)](https://github.com/vorojar/md-preview/releases)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20iOS%20%7C%20Android-lightgrey)](https://github.com/vorojar/md-preview/releases)
+[![App Store](https://img.shields.io/badge/App%20Store-Local%20Markdown%20Preview-blue?logo=appstore)](https://apps.apple.com/cn/app/local-markdown-preview/id6779451523)
 [![Binary size](https://img.shields.io/badge/binary-~5MB-green)](https://github.com/vorojar/md-preview/releases)
 
 > 给 AI 生成文档、README、计划文档、Mermaid 图和技术笔记用的原生 Markdown 预览器：打开 `.md` 文件，不必顺手启动一整个 IDE。
 
-MD Preview 是用 **Rust** 和系统 **WebView** 写的本地优先 Markdown 预览工具，桌面端覆盖 macOS、Windows、Linux，手机端提供原生外壳，方便从文件管理器、微信、企业微信和系统分享面板打开 Markdown。它不打包 Chromium，不依赖 Electron，渲染资源全部离线内置。你可以拖入文件、从命令行打开文件，或者把它放在 Cursor、Claude Code、Codex、VS Code、Vim、Zed 等常用工具旁边，当一扇干净的预览窗口。
+MD Preview 是用 **Rust** 和系统 **WebView** 写的本地优先 Markdown 预览工具，桌面端覆盖 macOS、Windows、Linux，手机端提供 iOS 和 Android 原生外壳，方便从文件管理器、微信、企业微信和系统分享面板打开 Markdown。它不打包 Chromium，不依赖 Electron，渲染资源全部离线内置。你可以拖入文件、从命令行打开文件，或者把它放在 Cursor、Claude Code、Codex、VS Code、Vim、Zed 等常用工具旁边，当一扇干净的预览窗口。
 
 ![MD Preview 截图](https://raw.githubusercontent.com/vorojar/md-preview/master/screenshots/hero.jpg)
 
@@ -42,9 +43,10 @@ AI 编程工具现在会生成大量 Markdown：`README.md`、`plan.md`、任务
 | macOS | `MD-Preview-macOS-universal.dmg` | Apple Silicon 和 Intel 通用。Release 版本会签名、公证。 |
 | Windows | `MD-Preview-windows-x64.exe` | 单文件应用。应用内更新会下载新版 exe，校验 SHA-256，退出后替换自己并重启。 |
 | Linux | `MD-Preview-linux-x64.tar.gz` | 需要系统 WebKitGTK 运行时。 |
+| iOS / iPadOS | [App Store 上的 Local Markdown Preview](https://apps.apple.com/cn/app/local-markdown-preview/id6779451523) | 原生 iPhone / iPad 预览器，可从“文件”和 iOS 分享面板打开 Markdown。 |
 | Android | `MD-Preview-Android.apk` | 原生 Android 预览器，可从文件管理器、微信、企业微信和分享面板打开 Markdown。 |
 
-Android 版本以单独的 mobile release 发布，例如 [mobile-android-v1.0.7](https://github.com/vorojar/md-preview/releases/tag/mobile-android-v1.0.7)。iOS 版本代码位于 `mobile/ios`，后续等待 App Store / TestFlight 分发。
+Android 版本以单独的 mobile release 发布，例如 [mobile-android-v1.0.7](https://github.com/vorojar/md-preview/releases/tag/mobile-android-v1.0.7)。iOS 版本已经在 App Store 上架，名称为 [Local Markdown Preview](https://apps.apple.com/cn/app/local-markdown-preview/id6779451523)。
 
 也可以从源码构建：
 
@@ -75,14 +77,14 @@ md-preview
 
 MD Preview 支持通过拖拽、打开对话框、最近文件或命令行打开 `.md` / `.txt` 文件。相对路径图片会按 Markdown 文件所在目录解析，本地文档目录可以自然渲染。
 
-Android 上，MD Preview 会出现在 Markdown 文件的“打开方式”和分享流程中。Recent 文件会缓存到应用私有目录，从微信、企业微信等临时来源打开过的文档后续也能继续打开；如果条目失效，会安全移除而不是闪退。
+iPhone 和 iPad 上，Local Markdown Preview 可以从“文件”和 iOS 分享面板打开 Markdown / 文本文件。Android 上，MD Preview 会出现在 Markdown 文件的“打开方式”和分享流程中。Recent 文件会缓存到应用私有目录，从微信、企业微信等临时来源打开过的文档后续也能继续打开；如果条目失效，会安全移除而不是闪退。
 
 ## 功能
 
 | 功能 | 说明 |
 |---|---|
 | 启动首页 | 空白启动时显示打开文件和本机最近文件，没加载文档也有明确入口。 |
-| 手机端打开 | Android 支持从文件管理器、微信、企业微信和系统分享面板打开 Markdown；iOS 代码位于 `mobile/ios`。 |
+| 手机端打开 | iOS 支持从“文件”和分享面板打开 Markdown；Android 支持从文件管理器、微信、企业微信和系统分享面板打开 Markdown。 |
 | 拖拽打开 | 把 Markdown 文件拖进窗口即可打开。 |
 | 命令行打开 | `md-preview path/to/file.md` 直接从 shell 打开。 |
 | 预览搜索 | `Cmd/Ctrl+F` 打开轻量搜索栏，在渲染后的文档内查找。 |
