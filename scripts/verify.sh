@@ -78,6 +78,17 @@ if "@page {{\n  margin: 12mm;\n}}" not in src:
 if "@media print {{" not in src or "#app {{ max-width: none; padding: 0; }}" not in src:
     raise SystemExit("src/main.rs must keep print media rules focused on preview output")
 PY
+  echo "[agent-verify] macOS close window shortcut"
+  python3 - <<'PY'
+from pathlib import Path
+src = Path("src/main.rs").read_text()
+if '"Close Window"' not in src:
+    raise SystemExit("macOS File menu must expose Close Window")
+if "Some(sel!(performClose:))" not in src:
+    raise SystemExit("macOS Close Window must use AppKit performClose:")
+if '"w",\n        NSEventModifierFlags::Command' not in src:
+    raise SystemExit("macOS Close Window must keep Cmd+W")
+PY
   ran=1
 fi
 

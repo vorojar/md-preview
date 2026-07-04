@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.25
+
+- Added the standard macOS `Cmd+W` / File -> Close Window command so Markdown files opened from Finder can be closed with the expected lightweight document shortcut.
+
 ## 1.1.24
 
 - Fixed local relative image rendering on desktop: images such as `assets/foo.png` next to the opened Markdown file are embedded into the preview instead of relying on WebView local file access.

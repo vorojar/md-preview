@@ -111,6 +111,7 @@ iPhone 和 iPad 上，Local Markdown Preview 可以从“文件”和 iOS 分享
 | `Cmd/Ctrl + E` | 切换预览 / 源码编辑 |
 | `Cmd/Ctrl + S` | 源码编辑模式下保存 |
 | `Cmd/Ctrl + P` | 打印预览 |
+| `Cmd + W` | 关闭 macOS 预览窗口 |
 | `Esc` | 退出源码编辑模式，并在需要时保存 |
 
 ## Markdown 支持

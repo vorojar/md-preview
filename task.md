@@ -1,4 +1,42 @@
-# 当前任务：iOS signing / TestFlight 发布准备
+# 当前任务：修复 macOS Cmd+W 并发布 v1.1.25
+
+## 目标
+
+- 修复 GitHub issue #32：macOS 端用 Finder 双击打开 Markdown 后，`Command+W` 应能按系统习惯关闭预览窗口。
+- 发布桌面版 `v1.1.25`，包含签名、公证、staple、Release notes、issue 回复和关闭。
+
+## 非目标
+
+- 不调整多窗口模型；当前仍按单窗口预览器处理，关闭窗口等同退出本次预览会话。
+- 不处理 #29、#28、#19。
+
+## 验收场景
+
+- [x] macOS File 菜单包含标准 `Close Window`，快捷键为 `Cmd+W`，走 AppKit `performClose:` 响应链。
+- [x] 现有打开、搜索、编辑、保存、打印快捷键不回退。
+- [x] `scripts/verify.sh` 通过。
+- [ ] GitHub Release `v1.1.25` 发布说明来自 `CHANGELOG.md` 对应段落，macOS DMG 已签名、公证并 staple。
+- [ ] issue #32 已用中文回复并关闭。
+
+## 执行记录
+
+- [x] 确认 #32 为真实用户反馈：macOS 缺少轻量文件窗口常见的 `Command+W` 关闭行为。
+- [x] 在 macOS 原生 File 菜单中新增 `Close Window` / `Cmd+W`，action 使用系统 `performClose:`。
+- [x] 更新版本号、CHANGELOG、README 快捷键和官网结构化版本号。
+
+## 验证记录
+
+```text
+cargo check
+cargo test
+./scripts/verify.sh
+
+结果：通过。统一验证覆盖桌面快捷键静态检查、cargo test、桌面锚点/搜索/Sparkle 更新、Windows 自更新、iOS 生成/构建、Android debug/release 构建和移动端渲染检查。
+```
+
+---
+
+# 上一任务存档：iOS signing / TestFlight 发布准备
 
 ## 目标
 

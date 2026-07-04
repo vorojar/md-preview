@@ -2547,6 +2547,14 @@ fn install_macos_menu(proxy: EventLoopProxy<UserEvent>, theme: ThemeChoice) {
         controller,
         mtm,
     ));
+    file_menu.addItem(&item(
+        "Close Window",
+        Some(sel!(performClose:)),
+        "w",
+        NSEventModifierFlags::Command,
+        mtm,
+    ));
+    file_menu.addItem(&NSMenuItem::separatorItem(mtm));
     file_menu.addItem(&command_item(
         "Print...",
         sel!(mdPreviewPrint:),

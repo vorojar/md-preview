@@ -111,6 +111,7 @@ On iPhone and iPad, Local Markdown Preview opens Markdown and plain-text files f
 | `Cmd/Ctrl + E` | Toggle preview/source edit |
 | `Cmd/Ctrl + S` | Save in source edit mode |
 | `Cmd/Ctrl + P` | Print preview |
+| `Cmd + W` | Close the macOS preview window |
 | `Esc` | Leave source edit mode and save if needed |
 
 ## Markdown Support
