@@ -9,9 +9,9 @@
 [![App Store](https://img.shields.io/badge/App%20Store-Local%20Markdown%20Preview-blue?logo=appstore)](https://apps.apple.com/cn/app/local-markdown-preview/id6779451523)
 [![Binary size](https://img.shields.io/badge/binary-~5MB-green)](https://github.com/vorojar/md-preview/releases)
 
-> 给 AI 生成文档、README、计划文档、Mermaid 图和技术笔记用的原生 Markdown 预览器：打开 `.md` 文件，不必顺手启动一整个 IDE。
+> 多份 Markdown，一个轻量窗口。预览、快速改源码、重启后接着上次的标签继续，不必启动一整个 IDE。
 
-MD Preview 是用 **Rust** 和系统 **WebView** 写的本地优先 Markdown 预览工具，桌面端覆盖 macOS、Windows、Linux，手机端提供 iOS 和 Android 原生外壳，方便从文件管理器、微信、企业微信和系统分享面板打开 Markdown。它不打包 Chromium，不依赖 Electron，渲染资源全部离线内置。你可以拖入文件、从命令行打开文件，或者把它放在 Cursor、Claude Code、Codex、VS Code、Vim、Zed 等常用工具旁边，当一扇干净的预览窗口。
+MD Preview 是用 **Rust** 和系统 **WebView** 写的本地优先 Markdown 预览与快速编辑工具，桌面端覆盖 macOS、Windows、Linux，手机端提供 iOS 和 Android 原生外壳，方便从文件管理器、微信、企业微信和系统分享面板打开 Markdown。它不打包 Chromium，不依赖 Electron，渲染资源全部离线内置。桌面端可以把多份本地文档放进同一组标签，重启后回到上次活动文档；macOS 上还能从 Finder 新建 Markdown 并立即开始编辑。
 
 ![MD Preview 截图](https://vorojar.github.io/md-preview/hero.jpg)
 
@@ -21,17 +21,20 @@ AI 编程工具现在会生成大量 Markdown：`README.md`、`plan.md`、任务
 
 - **打开快**：原生二进制、系统 WebView，不带一份浏览器运行时。
 - **本地渲染**：Markdown、代码高亮、数学公式、Mermaid 图表都在本机完成。
-- **跟随你的编辑器**：用 Vim、VS Code、Cursor、Zed 或任何编辑器保存文件，预览自动刷新。
+- **文档放在一起**：在一个标签窗口里打开多份 Markdown 和文本，下次启动继续上次会话。
+- **编辑少绕路**：直接在应用里快速改源码；macOS 上从 Finder 新建 Markdown 后立刻进入编辑。
+- **跟随外部编辑**：用 Vim、VS Code、Cursor、Zed 或任何编辑器保存文件，预览自动刷新。
 - **阅读不打扰**：工具栏只在 hover 时出现，空白首页提供打开文件和最近文件，文档始终是主角。
 - **覆盖真实文档**：代码块、表格、任务列表、公式、图表、图片、链接、打印都能离线工作。
 
 ## 适合 AI 编程工作流
 
-把它放在生成或编辑文档的工具旁边，做一个轻量只读窗口：
+把它当成专门承接这些文档的轻量预览工作区：
 
-- 预览 Claude Code / Codex / Cursor 生成的计划文档，不必打开完整 IDE。
-- 编辑器保持源码模式，旁边实时看 Mermaid 和 KaTeX 渲染结果。
-- 审阅本地项目笔记、规格说明和 README 草稿，保存后自动刷新，也能从最近文件继续并在预览里搜索。
+- 把 Claude Code / Codex / Cursor 生成的计划、任务笔记和 README 放进同一组标签，不必打开完整 IDE。
+- 重启后恢复原来的标签顺序和活动文档；后台文件只在点击时从磁盘加载。
+- 直接在 MD Preview 里完成小幅源码修改，同时保留外部编辑器写盘后的实时刷新。
+- macOS 上从 Finder 新建 Markdown 后直接开始编辑，不再为了一个空文件先打开 VS Code。
 - 需要干净 PDF 时，直接打印渲染后的预览。
 
 ## 下载
@@ -68,14 +71,22 @@ cp -r "target/MD Preview.app" /Applications/
 ## 使用
 
 ```bash
-# 直接打开文件
-md-preview README.md
+# 直接打开一份或多份文件
+md-preview README.md plan.md task.md
 
 # 或空启动后点打开文件、选择最近文件，或拖入文件
 md-preview
 ```
 
-MD Preview 支持通过拖拽、打开对话框、最近文件或命令行打开 `.md` / `.txt` 文件。相对路径图片会按 Markdown 文件所在目录解析，本地文档目录可以自然渲染。
+MD Preview 支持通过拖拽、打开对话框、最近文件或命令行打开 `.md` / `.txt` 文件。桌面端会用标签承载文档；重复打开同一路径时只激活已有标签。重启后恢复标签顺序和活动文档，后台文档正文仍留在磁盘，点击时才加载。相对路径图片会按 Markdown 文件所在目录解析，本地文档目录可以自然渲染。
+
+如果标签对应的文件被移动或删除，标签不会静默消失。点击后可以重新定位文件，或者关闭标签。
+
+### macOS Finder 右键操作
+
+已公证的 macOS 应用内置 Finder 扩展。把 `MD Preview.app` 拖到“应用程序”后打开一次；如果 macOS 没有自动启用，请前往 **系统设置 → 通用 → 登录项与扩展 → Finder 扩展**。
+
+在 Finder 文件夹空白处右键，可以新建 Markdown、文本、JSON、HTML，复制目录路径，或在终端打开。选择**新建 Markdown**后会自动避开重名，并直接在 MD Preview 源码编辑器里打开新文件。
 
 iPhone 和 iPad 上，Local Markdown Preview 可以从“文件”和 iOS 分享面板打开 Markdown / 文本文件。Android 上，MD Preview 会出现在 Markdown 文件的“打开方式”和分享流程中。Recent 文件会缓存到应用私有目录，从微信、企业微信等临时来源打开过的文档后续也能继续打开；如果条目失效，会安全移除而不是闪退。
 
@@ -83,6 +94,10 @@ iPhone 和 iPad 上，Local Markdown Preview 可以从“文件”和 iOS 分享
 
 | 功能 | 说明 |
 |---|---|
+| 桌面标签 | 在一个窗口打开多份 Markdown 或文本；重复路径只激活已有标签。 |
+| 会话恢复 | 重启后恢复标签顺序和活动文档，但不缓存后台文档正文。 |
+| 缺失文件 | 文件移动或删除后保留缺失标签，提供重新定位和关闭操作。 |
+| Finder 工作流 | macOS 上从 Finder 新建 Markdown，并立即在 MD Preview 里编辑。 |
 | 启动首页 | 空白启动时显示打开文件和本机最近文件，没加载文档也有明确入口。 |
 | 手机端打开 | iOS 支持从“文件”和分享面板打开 Markdown；Android 支持从文件管理器、微信、企业微信和系统分享面板打开 Markdown。 |
 | 拖拽打开 | 把 Markdown 文件拖进窗口即可打开。 |
@@ -111,7 +126,7 @@ iPhone 和 iPad 上，Local Markdown Preview 可以从“文件”和 iOS 分享
 | `Cmd/Ctrl + E` | 切换预览 / 源码编辑 |
 | `Cmd/Ctrl + S` | 源码编辑模式下保存 |
 | `Cmd/Ctrl + P` | 打印预览 |
-| `Cmd + W` | 关闭 macOS 预览窗口 |
+| `Cmd/Ctrl + W` | 关闭当前标签；没有文档标签时关闭窗口 |
 | `Esc` | 退出源码编辑模式，并在需要时保存 |
 
 ## Markdown 支持

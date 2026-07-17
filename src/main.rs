@@ -2471,6 +2471,8 @@ fn register_as_default(_lang: Lang) {}
 
 const WEBSITE_URL: &str = "https://vorojar.github.io/md-preview/";
 const GITHUB_URL: &str = "https://github.com/vorojar/md-preview";
+#[cfg(target_os = "macos")]
+const RELEASES_URL: &str = "https://github.com/vorojar/md-preview/releases/latest";
 
 #[cfg(target_os = "macos")]
 thread_local! {
@@ -2528,6 +2530,10 @@ fn macos_menu_controller_class() -> &'static objc2::runtime::AnyClass {
 
     extern "C" fn open_github(_: &AnyObject, _: Sel, _: &AnyObject) {
         send_macos_menu_event(UserEvent::OpenUrl(GITHUB_URL));
+    }
+
+    extern "C" fn open_releases(_: &AnyObject, _: Sel, _: &AnyObject) {
+        send_macos_menu_event(UserEvent::OpenUrl(RELEASES_URL));
     }
 
     extern "C" fn set_theme(_: &AnyObject, _: Sel, sender: &NSMenuItem) {
@@ -2600,11 +2606,11 @@ fn macos_menu_controller_class() -> &'static objc2::runtime::AnyClass {
         alert.setAlertStyle(NSAlertStyle::Informational);
         alert.setMessageText(&NSString::from_str("MD Preview"));
         alert.setInformativeText(&NSString::from_str(&format!(
-            "Version {}",
+            "Version {}\n\nOpen multiple local Markdown files in lightweight tabs, resume them across launches, and make quick source edits without opening an IDE.",
             env!("CARGO_PKG_VERSION")
         )));
 
-        let accessory = NSView::initWithFrame(NSView::alloc(mtm), rect(0.0, 0.0, 64.0, 28.0));
+        let accessory = NSView::initWithFrame(NSView::alloc(mtm), rect(0.0, 0.0, 94.0, 28.0));
         let home = symbol_button(
             "house",
             "Home",
@@ -2626,6 +2632,17 @@ fn macos_menu_controller_class() -> &'static objc2::runtime::AnyClass {
         );
         github.setFrame(rect(34.0, 1.0, 26.0, 26.0));
         accessory.addSubview(&github);
+
+        let releases = symbol_button(
+            "sparkles",
+            "New",
+            "What's New",
+            sel!(mdPreviewOpenReleases:),
+            controller,
+            mtm,
+        );
+        releases.setFrame(rect(64.0, 1.0, 26.0, 26.0));
+        accessory.addSubview(&releases);
         alert.setAccessoryView(Some(&accessory));
         alert.addButtonWithTitle(&NSString::from_str("OK"));
 
@@ -2664,6 +2681,10 @@ fn macos_menu_controller_class() -> &'static objc2::runtime::AnyClass {
             builder.add_method(
                 sel!(mdPreviewOpenGitHub:),
                 open_github as extern "C" fn(_, _, _),
+            );
+            builder.add_method(
+                sel!(mdPreviewOpenReleases:),
+                open_releases as extern "C" fn(_, _, _),
             );
             builder.add_method(
                 sel!(mdPreviewSetTheme:),

@@ -9,9 +9,9 @@
 [![App Store](https://img.shields.io/badge/App%20Store-Local%20Markdown%20Preview-blue?logo=appstore)](https://apps.apple.com/cn/app/local-markdown-preview/id6779451523)
 [![Binary size](https://img.shields.io/badge/binary-~5MB-green)](https://github.com/vorojar/md-preview/releases)
 
-> A native Markdown previewer for AI-generated docs, README files, plans, Mermaid diagrams, and technical notes. Open the file now, not a whole IDE.
+> Multiple Markdown files, one lightweight window. Preview, make quick source edits, and resume your tabs without launching a whole IDE.
 
-MD Preview is a fast, local-first Markdown viewer built with **Rust** and the system **WebView** on desktop, plus native iOS and Android shells for opening Markdown from Files, WeChat, WeCom, and system share sheets. It does not bundle Chromium, does not require Electron, and keeps all rendering assets offline. Drop in a Markdown file, open one from the terminal, or keep it beside Cursor, Claude Code, Codex, VS Code, Vim, Zed, or any editor that writes Markdown.
+MD Preview is a fast, local-first Markdown previewer and quick editor built with **Rust** and the system **WebView** on desktop, plus native iOS and Android shells for opening Markdown from Files, WeChat, WeCom, and system share sheets. It does not bundle Chromium, does not require Electron, and keeps all rendering assets offline. Open several local documents as tabs, return to the same active document after restart, or create a Markdown file from Finder on macOS and start typing immediately.
 
 ![MD Preview screenshot](https://vorojar.github.io/md-preview/hero.jpg)
 
@@ -21,17 +21,20 @@ AI coding tools now generate a lot of Markdown: `README.md`, `plan.md`, task spe
 
 - **Open fast** - native binary, system WebView, no bundled browser runtime.
 - **Stay local** - Markdown, syntax highlighting, math, and diagrams render on your machine.
-- **Follow your editor** - save the file in Vim, VS Code, Cursor, Zed, or anything else; the preview refreshes automatically.
+- **Keep documents together** - open multiple Markdown and text files in one tabbed window and resume the session later.
+- **Edit without detours** - make a quick source edit in place; on macOS, Finder can create Markdown straight into the editor.
+- **Follow external edits** - save the file in Vim, VS Code, Cursor, Zed, or anything else; the preview refreshes automatically.
 - **Keep reading clean** - the toolbar only appears on hover, and the start screen gives you Open File plus recent files.
 - **Handle real Markdown** - code blocks, tables, task lists, math formulas, Mermaid diagrams, images, links, and print all work offline.
 
 ## Fits AI Coding Workflows
 
-Use it as a small read-only window next to the tools that generate or edit your docs:
+Use it as a small preview-first workspace for the documents your tools generate:
 
-- Preview Claude Code / Codex / Cursor-generated plans without opening a full IDE.
-- Keep Mermaid and KaTeX docs readable while your editor stays in source mode.
-- Review local project notes, specs, and README drafts with live reload, recent files, and in-document search.
+- Keep Claude Code / Codex / Cursor-generated plans, task notes, and READMEs open as tabs without opening a full IDE.
+- Resume the same tab order and active document after restarting the app; inactive files load from disk only when selected.
+- Make small source edits inside MD Preview, while still getting live reload when another editor writes the file.
+- On macOS, create a new Markdown document from Finder and land directly in source edit instead of opening VS Code first.
 - Print or export the rendered preview when you need a clean PDF.
 
 ## Download
@@ -68,14 +71,22 @@ cp -r "target/MD Preview.app" /Applications/
 ## Usage
 
 ```bash
-# Open a file directly
-md-preview README.md
+# Open one or several files directly
+md-preview README.md plan.md task.md
 
 # Or launch an empty window, use Open File, pick a recent file, or drag one in
 md-preview
 ```
 
-MD Preview accepts `.md` and `.txt` files through drag and drop, the open dialog, recent files, or the command line. Relative images are resolved from the Markdown file's directory, so local documentation folders render naturally.
+MD Preview accepts `.md` and `.txt` files through drag and drop, the open dialog, recent files, or the command line. Desktop documents open as tabs; opening the same path activates its existing tab. Tab order and the active document are restored across launches, while inactive content stays on disk until selected. Relative images are resolved from the Markdown file's directory, so local documentation folders render naturally.
+
+If a tab's file is moved or deleted, the tab remains visible instead of disappearing silently. Select it to locate the file again or close the tab.
+
+### macOS Finder actions
+
+The notarized macOS app includes a Finder extension. After dragging `MD Preview.app` to Applications, open it once. If macOS does not enable the extension automatically, use **System Settings → General → Login Items & Extensions → Finder Extensions**.
+
+Right-click inside a Finder folder to create Markdown, text, JSON, or HTML files, copy the folder path, or open the folder in Terminal. **New Markdown** creates a non-conflicting filename and opens it directly in MD Preview's source editor.
 
 On iPhone and iPad, Local Markdown Preview opens Markdown and plain-text files from Files and the iOS share sheet. On Android, MD Preview appears in the system "Open with" and share flows for Markdown files. Recent files are cached privately inside the app, so files opened from temporary providers such as WeChat or WeCom remain available later; stale recent entries are removed safely instead of crashing.
 
@@ -83,6 +94,10 @@ On iPhone and iPad, Local Markdown Preview opens Markdown and plain-text files f
 
 | Feature | What it means |
 |---|---|
+| Desktop tabs | Open multiple Markdown or text documents in one window; duplicate paths activate the existing tab. |
+| Session restore | Restore tab order and the active document after restart without caching inactive document bodies. |
+| Missing files | Moved or deleted files remain as explicit missing tabs with Locate and Close actions. |
+| Finder workflow | On macOS, create Markdown from Finder and start editing it immediately in MD Preview. |
 | Start screen | Empty launches show Open File and local recent files, so the app is useful before anything is loaded. |
 | Mobile open | iOS opens Markdown from Files and the share sheet; Android can open Markdown from Files, WeChat, WeCom, and Android share sheets. |
 | Drag and drop | Drop a Markdown file into the window and it opens immediately. |
@@ -111,7 +126,7 @@ On iPhone and iPad, Local Markdown Preview opens Markdown and plain-text files f
 | `Cmd/Ctrl + E` | Toggle preview/source edit |
 | `Cmd/Ctrl + S` | Save in source edit mode |
 | `Cmd/Ctrl + P` | Print preview |
-| `Cmd + W` | Close the macOS preview window |
+| `Cmd/Ctrl + W` | Close the active tab; close the window when no document tab remains |
 | `Esc` | Leave source edit mode and save if needed |
 
 ## Markdown Support

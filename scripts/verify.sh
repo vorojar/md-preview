@@ -97,6 +97,35 @@ PY
   ran=1
 fi
 
+if [ -f docs/index.html ] && [ -f README.md ] && [ -f README_zh.md ]; then
+  echo "[agent-verify] v1.2 product story"
+  python3 - <<'PY'
+from pathlib import Path
+import tomllib
+
+version = tomllib.loads(Path("Cargo.toml").read_text())["package"]["version"]
+site = Path("docs/index.html").read_text()
+readme = Path("README.md").read_text()
+readme_zh = Path("README_zh.md").read_text()
+src = Path("src/main.rs").read_text()
+
+if f'"softwareVersion": "{version}"' not in site:
+    raise SystemExit("website structured data must match Cargo.toml version")
+for marker in ("Multi-document tabs", "Session restore", "Finder to source edit"):
+    if marker not in site:
+        raise SystemExit(f"website is missing v1.2 product marker: {marker}")
+for marker in ("Desktop tabs", "Session restore", "Finder workflow"):
+    if marker not in readme:
+        raise SystemExit(f"README.md is missing v1.2 product marker: {marker}")
+for marker in ("桌面标签", "会话恢复", "Finder 工作流"):
+    if marker not in readme_zh:
+        raise SystemExit(f"README_zh.md is missing v1.2 product marker: {marker}")
+if "What's New" not in src or "resume them across launches" not in src:
+    raise SystemExit("macOS About must keep the current product positioning and What's New entry")
+PY
+  ran=1
+fi
+
 if [ -f macos/finder-extension/FinderSyncExtension.swift ]; then
   echo "[agent-verify] Finder Sync integration contract"
   grep -F 'com.apple.FinderSync' macos/finder-extension/project.yml >/dev/null
