@@ -32,6 +32,7 @@
 - Issue #28 已回复并按 completed 关闭；#33 已回复并保持开放。
 - PR #34 在 macOS、Linux、Windows CI 全绿后合并；GitHub Pages 构建提交为 `5f2b9dd`。
 - 线上 `index.html` 与 `hero.jpg` 分别和仓库文件哈希完全一致；线上桌面与移动视口复验通过。
+- 官网主图进一步换成真实发布版渲染：同屏展示 3 个标签、GitHub Alert、Mermaid、KaTeX 与 Rust 代码高亮；拒绝使用会重绘产品像素的生成式图片作为事实截图。
 
 ---
 
