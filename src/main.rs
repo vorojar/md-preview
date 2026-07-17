@@ -3,8 +3,11 @@
     windows_subsystem = "windows"
 )]
 
+mod session;
+
 use notify::{Event, RecursiveMode, Watcher};
 use pulldown_cmark::{html, CowStr, Event as MdEvent, Options, Parser, Tag, TagEnd};
+use session::DocumentSession;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Component;
@@ -16,7 +19,7 @@ use tao::dpi::{LogicalPosition, LogicalSize};
 use tao::event::{Event as TaoEvent, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy};
 use tao::window::{Theme, Window, WindowBuilder};
-use wry::WebViewBuilder;
+use wry::{WebView, WebViewBuilder};
 
 const ICON_BYTES: &[u8] = include_bytes!("../assets/icon.ico");
 const DEFAULT_W: f64 = 900.0;
@@ -26,8 +29,14 @@ static APP_DIRTY: AtomicBool = AtomicBool::new(false);
 #[derive(Debug)]
 enum UserEvent {
     OpenFile,
-    FileChanged, // external change: refresh preview AND textarea
-    FileSaved,   // our own save: refresh preview only, leave textarea cursor alone
+    OpenPaths(Vec<PathBuf>, bool),
+    ActivateTab(u64),
+    CloseTab(u64),
+    CloseActiveTab,
+    LocateTab(u64),
+    FileChanged(PathBuf), // external change: refresh preview AND textarea
+    FileSaved(PathBuf),   // our own save: refresh preview only, leave textarea cursor alone
+    SaveFailed(String),
     DirtyChanged(bool),
     ToggleEdit,
     ShowFind,
@@ -131,6 +140,10 @@ struct Strings {
     cannot_read: &'static str,
     open_file: &'static str,
     recent_title: &'static str,
+    missing_title: &'static str,
+    missing_body: &'static str,
+    locate_file: &'static str,
+    close_tab: &'static str,
     btn_edit: &'static str,
     btn_preview: &'static str,
     btn_open: &'static str,
@@ -148,6 +161,10 @@ impl Strings {
                 cannot_read: "无法读取文件",
                 open_file: "Open File",
                 recent_title: "Recent",
+                missing_title: "文件已移动或删除",
+                missing_body: "这个标签会继续保留。你可以重新定位文件，或关闭标签。",
+                locate_file: "重新定位",
+                close_tab: "关闭标签",
                 btn_edit: "编辑 (Cmd/Ctrl+E)",
                 btn_preview: "预览 (Cmd/Ctrl+E)",
                 btn_open: "Open File (Cmd/Ctrl+O)",
@@ -161,6 +178,10 @@ impl Strings {
                 cannot_read: "Cannot read file",
                 open_file: "Open File",
                 recent_title: "Recent",
+                missing_title: "File Moved or Deleted",
+                missing_body: "This tab is kept. Locate the file again or close the tab.",
+                locate_file: "Locate File",
+                close_tab: "Close Tab",
                 btn_edit: "Edit (Cmd/Ctrl+E)",
                 btn_preview: "Preview (Cmd/Ctrl+E)",
                 btn_open: "Open File (Cmd/Ctrl+O)",
@@ -174,6 +195,9 @@ impl Strings {
 }
 
 fn config_dir() -> PathBuf {
+    if let Some(path) = std::env::var_os("MD_PREVIEW_CONFIG_DIR") {
+        return PathBuf::from(path);
+    }
     #[cfg(target_os = "windows")]
     {
         std::env::var_os("LOCALAPPDATA")
@@ -683,6 +707,44 @@ fn recent_files_path() -> PathBuf {
     config_dir().join("recent-files.txt")
 }
 
+fn session_path() -> PathBuf {
+    config_dir().join("session.json")
+}
+
+fn tabs_json(session: &DocumentSession) -> String {
+    let tabs = session
+        .tabs
+        .iter()
+        .map(|tab| {
+            let name = tab
+                .path
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_else(|| tab.path.to_string_lossy().to_string());
+            serde_json::json!({
+                "id": tab.id,
+                "name": name,
+                "path": tab.path.to_string_lossy(),
+                "active": session.active_id == Some(tab.id),
+                "missing": tab.missing,
+                "dirty": tab.dirty,
+            })
+        })
+        .collect::<Vec<_>>();
+    serde_json::to_string(&tabs).expect("tab state is serializable")
+}
+
+fn missing_preview_html(tab_id: u64, path: &Path, s: &Strings) -> String {
+    format!(
+        r#"<div class="missing-file"><div class="missing-mark">!</div><h2>{}</h2><p>{}</p><code>{}</code><div class="missing-actions"><button type="button" data-locate-tab="{tab_id}">{}</button><button type="button" data-close-tab="{tab_id}">{}</button></div></div>"#,
+        html_escape_text(s.missing_title),
+        html_escape_text(s.missing_body),
+        html_escape_text(&path.to_string_lossy()),
+        html_escape_text(s.locate_file),
+        html_escape_text(s.close_tab),
+    )
+}
+
 fn load_recent_files() -> Vec<PathBuf> {
     let Ok(txt) = fs::read_to_string(recent_files_path()) else {
         return Vec::new();
@@ -955,7 +1017,7 @@ fn build_page(
 }})();
 </script>
 <style>
-:root {{ color-scheme: light dark; }}
+:root {{ color-scheme: light dark; --chrome-top: 10px; }}
 /* Reserve scrollbar space permanently so the fixed toolbar doesn't shift
    between modes (one with scrollbar, one without). */
 html {{ overflow-y: scroll; scrollbar-gutter: stable; }}
@@ -965,32 +1027,8 @@ body {{
   line-height: 1.6; font-size: 15px;
   color: #1a1a1a; background: #fff;
 }}
+body.has-tabs {{ --chrome-top: 50px; }}
 #app {{ max-width: 820px; margin: 0 auto; padding: 24px; }}
-@media (prefers-color-scheme: dark) {{
-  body {{ color: #d4d4d4; background: #1e1e1e; }}
-  #preview a {{ color: #6cb6ff; }}
-  #preview pre {{ background: #2d2d2d !important; }}
-  #preview code:not(pre code) {{ background: #2d2d2d; }}
-  #preview blockquote {{ border-color: #444; color: #999; }}
-  #preview .markdown-alert-note,
-  #preview .markdown-alert-tip,
-  #preview .markdown-alert-important,
-  #preview .markdown-alert-warning,
-  #preview .markdown-alert-caution {{ background: #161b22; }}
-  #preview .markdown-alert-note {{ border-color: #2f81f7; }}
-  #preview .markdown-alert-tip {{ border-color: #3fb950; }}
-  #preview .markdown-alert-important {{ border-color: #a371f7; }}
-  #preview .markdown-alert-warning {{ border-color: #d29922; }}
-  #preview .markdown-alert-caution {{ border-color: #f85149; }}
-  #preview .markdown-alert-note .markdown-alert-title {{ color: #2f81f7; }}
-  #preview .markdown-alert-tip .markdown-alert-title {{ color: #3fb950; }}
-  #preview .markdown-alert-important .markdown-alert-title {{ color: #a371f7; }}
-  #preview .markdown-alert-warning .markdown-alert-title {{ color: #d29922; }}
-  #preview .markdown-alert-caution .markdown-alert-title {{ color: #f85149; }}
-  #preview table th {{ background: #2d2d2d; color: #f0f0f0; }}
-  #preview table td, #preview table th {{ border-color: #444; }}
-  #preview hr {{ border-color: #333; }}
-}}
 #preview h1,#preview h2,#preview h3,#preview h4 {{ margin-top: 1.4em; }}
 #preview h1 {{ border-bottom: 1px solid #e1e4e8; padding-bottom: .3em; }}
 #preview h2 {{ border-bottom: 1px solid #e1e4e8; padding-bottom: .2em; }}
@@ -1078,10 +1116,52 @@ body {{
 	.recent-item:hover {{ background: #f7f7f7; }}
 	.recent-name {{ color: #555; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
 	.recent-path {{ color: #aaa; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+	.tabbar {{
+	  display: none; position: sticky; top: 0; z-index: 110; height: 40px;
+	  box-sizing: border-box; align-items: stretch; gap: 4px; padding: 4px 8px;
+	  border-bottom: 1px solid #e6e6e6; background: rgba(248,248,248,0.96);
+	  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+	}}
+	body.has-tabs .tabbar {{ display: flex; }}
+	.tabs {{ display: flex; flex: 1; min-width: 0; gap: 4px; overflow-x: auto; scrollbar-width: none; }}
+	.tabs::-webkit-scrollbar {{ display: none; }}
+	.tab {{
+	  flex: 0 1 180px; min-width: 96px; max-width: 200px; height: 31px;
+	  display: flex; align-items: center; gap: 7px; padding: 0 8px 0 10px;
+	  box-sizing: border-box; border: 1px solid transparent; border-radius: 7px;
+	  color: #6b6b6b; background: transparent; cursor: default; user-select: none;
+	  font-size: 13px;
+	}}
+	.tab:hover {{ background: rgba(0,0,0,0.045); }}
+	.tab.active {{ color: #202020; background: #fff; border-color: #ddd; box-shadow: 0 1px 2px rgba(0,0,0,.04); }}
+	.tab.missing {{ color: #a15c00; }}
+	.tab-status {{ width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: transparent; }}
+	.tab.dirty .tab-status {{ background: #2979c9; }}
+	.tab.missing .tab-status {{ width: auto; height: auto; background: none; border-radius: 0; font-weight: 700; }}
+	.tab-name {{ min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+	.tab-close {{
+	  width: 20px; height: 20px; flex: 0 0 auto; padding: 0; border: 0; border-radius: 5px;
+	  display: grid; place-items: center; color: inherit; background: transparent; cursor: pointer;
+	  font: 16px/1 -apple-system, BlinkMacSystemFont, sans-serif; opacity: .58;
+	}}
+	.tab-close:hover {{ opacity: 1; background: rgba(0,0,0,.08); }}
+	.tab-open {{
+	  width: 31px; height: 31px; flex: 0 0 auto; padding: 0; border: 0; border-radius: 7px;
+	  color: #666; background: transparent; cursor: pointer; font: 20px/1 -apple-system, sans-serif;
+	}}
+	.tab-open:hover {{ color: #111; background: rgba(0,0,0,.06); }}
+	.missing-file {{ min-height: 55vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; }}
+	.missing-file h2, .missing-file p {{ margin: 0; }}
+	.missing-file p {{ color: #777; }}
+	.missing-file code {{ max-width: min(620px, 90vw); overflow-wrap: anywhere; color: #8a5a12; }}
+	.missing-mark {{ width: 38px; height: 38px; border: 2px solid #c98322; border-radius: 50%; display: grid; place-items: center; color: #a15c00; font-weight: 700; font-size: 22px; }}
+	.missing-actions {{ display: flex; gap: 8px; margin-top: 8px; }}
+	.missing-actions button {{ min-height: 36px; padding: 0 13px; border: 1px solid #d8d8d8; border-radius: 7px; background: #fff; color: #333; cursor: pointer; font: inherit; }}
+	.missing-actions button:hover {{ background: #f4f4f4; }}
 
 /* Floating toolbar (top-right) — hover-reveal, hidden in empty state unless an update exists */
 .toolbar {{
-  position: fixed; top: 10px; right: 12px;
+  position: fixed; top: var(--chrome-top); right: 12px;
   display: flex; gap: 6px; z-index: 100;
   opacity: 0; pointer-events: none;
   transition: opacity 0.18s ease;
@@ -1109,7 +1189,7 @@ body.empty .toolbar.has-update button:not(.update-btn) {{ display: none !importa
 	}}
 	.toolbar .update-mark {{ font-size: 17px; line-height: 1; transform: translateY(-0.5px); }}
 	.findbar {{
-	  position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+	  position: fixed; top: var(--chrome-top); left: 50%; transform: translateX(-50%);
 	  display: none; align-items: center; gap: 6px; z-index: 101;
 	  padding: 6px; border: 1px solid rgba(0,0,0,0.08); border-radius: 10px;
 	  background: rgba(255,255,255,0.96); box-shadow: 0 8px 24px rgba(0,0,0,0.12);
@@ -1127,6 +1207,30 @@ body.empty .toolbar.has-update button:not(.update-btn) {{ display: none !importa
 	}}
 	.findbar button:hover {{ background: #f0f0f0; color: #111; }}
 	@media (prefers-color-scheme: dark) {{
+	  body {{ color: #d4d4d4; background: #1e1e1e; }}
+	  #preview a {{ color: #6cb6ff; }}
+	  #preview h1, #preview h2 {{ border-color: #333; }}
+	  #preview pre {{ background: #2d2d2d !important; }}
+	  #preview code:not(pre code) {{ background: #2d2d2d; }}
+	  #preview blockquote {{ border-color: #444; color: #aaa; }}
+	  #preview .markdown-alert-note,
+	  #preview .markdown-alert-tip,
+	  #preview .markdown-alert-important,
+	  #preview .markdown-alert-warning,
+	  #preview .markdown-alert-caution {{ background: #161b22; color: #d4d4d4; }}
+	  #preview .markdown-alert-note {{ border-color: #2f81f7; }}
+	  #preview .markdown-alert-tip {{ border-color: #3fb950; }}
+	  #preview .markdown-alert-important {{ border-color: #a371f7; }}
+	  #preview .markdown-alert-warning {{ border-color: #d29922; }}
+	  #preview .markdown-alert-caution {{ border-color: #f85149; }}
+	  #preview .markdown-alert-note .markdown-alert-title {{ color: #2f81f7; }}
+	  #preview .markdown-alert-tip .markdown-alert-title {{ color: #3fb950; }}
+	  #preview .markdown-alert-important .markdown-alert-title {{ color: #a371f7; }}
+	  #preview .markdown-alert-warning .markdown-alert-title {{ color: #d29922; }}
+	  #preview .markdown-alert-caution .markdown-alert-title {{ color: #f85149; }}
+	  #preview table th {{ background: #2d2d2d; color: #f0f0f0; }}
+	  #preview table td, #preview table th {{ border-color: #444; }}
+	  #preview hr {{ border-color: #333; }}
 	  .toolbar button {{
 	    background: rgba(40,40,40,0.8);
     border-color: rgba(255,255,255,0.1);
@@ -1141,6 +1245,15 @@ body.empty .toolbar.has-update button:not(.update-btn) {{ display: none !importa
 		  .recent-item:hover {{ background: #2d2d2d; }}
 	  .findbar {{ background: rgba(34,34,34,0.96); border-color: rgba(255,255,255,0.1); }}
 	  .findbar button:hover {{ background: #333; color: #fff; }}
+	  .tabbar {{ background: rgba(28,28,28,.96); border-color: #363636; }}
+	  .tab {{ color: #aaa; }}
+	  .tab:hover {{ background: rgba(255,255,255,.07); }}
+	  .tab.active {{ color: #eee; background: #2c2c2c; border-color: #444; }}
+	  .tab.missing {{ color: #e3a04b; }}
+	  .tab-close:hover, .tab-open:hover {{ background: rgba(255,255,255,.1); color: #fff; }}
+	  .missing-file p {{ color: #aaa; }}
+	  .missing-actions button {{ background: #292929; border-color: #444; color: #ddd; }}
+	  .missing-actions button:hover {{ background: #333; }}
 	}}
 
 /* Source editor textarea — height is auto-grown by JS to match content,
@@ -1167,12 +1280,13 @@ body.editing #btn-print {{ display: none; }}
 }}
 
 @media print {{
-  .toolbar, #editor {{ display: none !important; }}
+  .toolbar, .tabbar, #editor {{ display: none !important; }}
   #preview {{ display: block !important; }}
   #app {{ max-width: none; padding: 0; }}
   #preview .mdp-table-wrap {{ width: auto; margin: 1em 0; transform: none; overflow: visible; }}
 }}
 	</style></head><body class="{body_class}">
+	<div class="tabbar" id="tabbar"><div class="tabs" id="tabs"></div><button class="tab-open" id="tab-open" type="button" title="{btn_open}" aria-label="{btn_open}">+</button></div>
 	<div class="toolbar">
 	  <button id="btn-open" title="{btn_open}" aria-label="{btn_open}"></button>
 	  <button id="btn-search" title="{btn_search}" aria-label="{btn_search}"></button>
@@ -1213,8 +1327,11 @@ body.editing #btn-print {{ display: none; }}
 	  var findPrev = document.getElementById('find-prev');
 	  var findNext = document.getElementById('find-next');
 	  var findClose = document.getElementById('find-close');
+	  var tabsEl = document.getElementById('tabs');
+	  var tabOpen = document.getElementById('tab-open');
 	  var ta = document.getElementById('editor');
 	  var dirty = false;
+	  var activeTabId = 0;
 	  var composingFind = false;
 	  var pendingFindTimer = 0;
 	  var FIND_DEBOUNCE_MS = 300;
@@ -1242,7 +1359,12 @@ body.editing #btn-print {{ display: none; }}
   }}
 	  function save() {{
 	    window.ipc.postMessage('save:' + ta.value);
-	    setDirty(false);
+	  }}
+	  window.__mdPreviewSave = save;
+	  function requestTabAction(action, id) {{
+	    var message = 'tab-action:' + action + ':' + id;
+	    if (dirty) message += '\n' + ta.value;
+	    window.ipc.postMessage(message);
 	  }}
 	  function openFile() {{
 	    if (inEdit()) leaveEdit();
@@ -1413,13 +1535,39 @@ body.editing #btn-print {{ display: none; }}
   window.__mdPreviewToggleEdit = function() {{
     if (inEdit()) leaveEdit(); else enterEdit();
   }};
+	window.__mdPreviewEnterEdit = function() {{
+	  if (!inEdit()) enterEdit();
+	}};
+	window.__mdPreviewCloseActiveTab = function() {{
+	  if (activeTabId) requestTabAction('close', activeTabId);
+	}};
   window.__mdPreviewCheckUpdates = function() {{
     if (btnUpdate) btnUpdate.click();
   }};
 
 	  btnOpen.addEventListener('click', openFile);
+	  tabOpen.addEventListener('click', openFile);
 	  btnSearch.addEventListener('click', showFind);
 	  document.addEventListener('click', function(e) {{
+	    var closeTab = e.target && e.target.closest ? e.target.closest('[data-close-tab]') : null;
+	    if (closeTab) {{
+	      e.preventDefault();
+	      e.stopPropagation();
+	      requestTabAction('close', closeTab.getAttribute('data-close-tab'));
+	      return;
+	    }}
+	    var locateTab = e.target && e.target.closest ? e.target.closest('[data-locate-tab]') : null;
+	    if (locateTab) {{
+	      e.preventDefault();
+	      window.ipc.postMessage('locate-tab:' + locateTab.getAttribute('data-locate-tab'));
+	      return;
+	    }}
+	    var tab = e.target && e.target.closest ? e.target.closest('[data-tab-id]') : null;
+	    if (tab) {{
+	      e.preventDefault();
+	      requestTabAction('activate', tab.getAttribute('data-tab-id'));
+	      return;
+	    }}
 	    var openBtn = e.target && e.target.closest ? e.target.closest('[data-open-file]') : null;
 	    if (openBtn) {{
 	      e.preventDefault();
@@ -1460,6 +1608,13 @@ body.editing #btn-print {{ display: none; }}
   window.addEventListener('resize', function() {{ if (inEdit()) autoResize(); }});
 
   document.addEventListener('keydown', function(e) {{
+	if ((e.metaKey || e.ctrlKey) && (e.key === 'w' || e.key === 'W')) {{
+	  if (activeTabId) {{
+	    e.preventDefault();
+	    requestTabAction('close', activeTabId);
+	  }}
+	  return;
+	}}
     if ((e.metaKey || e.ctrlKey) && (e.key === 'r' || e.key === 'R')) {{
       e.preventDefault();
       if (!inEdit()) window.ipc.postMessage('refresh');
@@ -1517,8 +1672,49 @@ body.editing #btn-print {{ display: none; }}
     if (baseHref) base.setAttribute('href', baseHref);
     else base.removeAttribute('href');
   }};
+	window.__markSaved = function() {{ setDirty(false); }};
+	window.__setTabs = function(tabs) {{
+	  tabs = Array.isArray(tabs) ? tabs : [];
+	  tabsEl.textContent = '';
+	  activeTabId = 0;
+	  document.body.classList.toggle('has-tabs', tabs.length > 0);
+	  tabs.forEach(function(tab) {{
+	    var item = document.createElement('div');
+	    item.className = 'tab' + (tab.active ? ' active' : '') + (tab.missing ? ' missing' : '') + (tab.dirty ? ' dirty' : '');
+	    item.setAttribute('data-tab-id', tab.id);
+	    item.setAttribute('role', 'button');
+	    item.setAttribute('tabindex', '0');
+	    item.title = tab.path;
+	    if (tab.active) activeTabId = tab.id;
+	    var status = document.createElement('span');
+	    status.className = 'tab-status';
+	    status.textContent = tab.missing ? '!' : '';
+	    var name = document.createElement('span');
+	    name.className = 'tab-name';
+	    name.textContent = tab.name;
+	    var close = document.createElement('button');
+	    close.className = 'tab-close';
+	    close.type = 'button';
+	    close.setAttribute('data-close-tab', tab.id);
+	    close.setAttribute('aria-label', 'Close ' + tab.name);
+	    close.textContent = '×';
+	    item.appendChild(status);
+	    item.appendChild(name);
+	    item.appendChild(close);
+	    tabsEl.appendChild(item);
+	    if (tab.active) requestAnimationFrame(function() {{ item.scrollIntoView({{ block: 'nearest', inline: 'nearest' }}); }});
+	  }});
+	}};
+	tabsEl.addEventListener('keydown', function(e) {{
+	  if (e.key !== 'Enter' && e.key !== ' ') return;
+	  var tab = e.target && e.target.closest ? e.target.closest('[data-tab-id]') : null;
+	  if (!tab) return;
+	  e.preventDefault();
+	  requestTabAction('activate', tab.getAttribute('data-tab-id'));
+	}});
 	  window.__setContent = function(previewHtml, rawMd, baseHref, needsMath, needsMermaid) {{
 	    document.body.classList.remove('empty');
+	    document.body.classList.remove('missing');
 	    hideFind();
 	    window.__setBaseHref(baseHref);
     window.__setPreview(previewHtml, needsMath, needsMermaid);
@@ -1530,6 +1726,19 @@ body.editing #btn-print {{ display: none; }}
   }};
 	  window.__setEmptyPreview = function(previewHtml) {{
 	    document.body.classList.add('empty');
+	    document.body.classList.remove('missing');
+	    hideFind();
+	    window.__setBaseHref('');
+	    document.getElementById('preview').innerHTML = previewHtml;
+	    ta.value = '';
+	    setDirty(false);
+	    window.scrollTo(0, 0);
+	  }};
+	  window.__setMissing = function(previewHtml) {{
+	    document.body.classList.remove('empty');
+	    document.body.classList.add('missing');
+	    document.body.classList.remove('editing');
+	    btnToggle.innerHTML = ICON_EDIT;
 	    hideFind();
 	    window.__setBaseHref('');
 	    document.getElementById('preview').innerHTML = previewHtml;
@@ -1991,6 +2200,13 @@ mod tests {
         assert!(page.contains("body.editing #btn-open"));
         assert!(page.contains("ta.focus({ preventScroll: true })"));
         assert!(page.contains("window.__setEmptyPreview"));
+        assert!(page.contains("id=\"tabbar\""));
+        assert!(page.contains("window.__setTabs"));
+        assert!(page.contains("tab-action:'));") || page.contains("'tab-action:' + action"));
+        assert!(page.contains("window.__markSaved"));
+        assert!(
+            !page.contains("window.ipc.postMessage('save:' + ta.value);\n\t    setDirty(false);")
+        );
         assert!(page.contains("releases?per_page=20"));
         assert!(page.contains("nativeUpdater: true"));
         assert!(page.contains("compositionstart"));
@@ -2008,7 +2224,9 @@ mod tests {
         assert!(page.contains("event.target.closest('#preview a[href]')"));
         assert!(page.contains(".markdown-alert-important"));
         assert!(page.contains(".markdown-alert-title"));
-        assert!(page.contains("background: #161b22"));
+        let light_alert = page.find("background: #dafbe1").unwrap();
+        let dark_alert = page.rfind("background: #161b22; color: #d4d4d4").unwrap();
+        assert!(dark_alert > light_alert);
         assert!(page.contains(".mdp-mark"));
         assert!(!page.contains("Local-first Markdown preview for AI-generated docs"));
     }
@@ -2124,6 +2342,32 @@ mod tests {
         let target = PathBuf::from("/tmp/note.md");
 
         assert_eq!(watch_scope_for_file(&target), Path::new("/tmp"));
+    }
+
+    #[test]
+    fn finder_action_parses_encoded_folder_and_kind() {
+        assert_eq!(
+            parse_finder_action(
+                "mdpreview://finder?action=create&path=%2Ftmp%2FMy%20Notes&kind=md"
+            ),
+            Some(FinderAction::Create {
+                folder: PathBuf::from("/tmp/My Notes"),
+                kind: "md".to_string(),
+            })
+        );
+        assert!(parse_finder_action("https://example.com/").is_none());
+    }
+
+    #[test]
+    fn finder_create_uses_non_conflicting_markdown_name() {
+        let dir = temp_test_dir("finder-create");
+        fs::write(dir.join("新建.md"), "existing").unwrap();
+
+        let created = create_finder_file(&dir, "md").unwrap();
+
+        assert_eq!(created.file_name().unwrap(), "新建 2.md");
+        assert_eq!(fs::read_to_string(created).unwrap(), "");
+        let _ = fs::remove_dir_all(dir);
     }
 }
 
@@ -2256,6 +2500,10 @@ fn macos_menu_controller_class() -> &'static objc2::runtime::AnyClass {
 
     extern "C" fn open_file(_: &AnyObject, _: Sel, _: &AnyObject) {
         send_macos_menu_event(UserEvent::OpenFile);
+    }
+
+    extern "C" fn close_tab(_: &AnyObject, _: Sel, _: &AnyObject) {
+        send_macos_menu_event(UserEvent::CloseActiveTab);
     }
 
     extern "C" fn show_find(_: &AnyObject, _: Sel, _: &AnyObject) {
@@ -2391,6 +2639,10 @@ fn macos_menu_controller_class() -> &'static objc2::runtime::AnyClass {
             builder.add_method(
                 sel!(mdPreviewOpenFile:),
                 open_file as extern "C" fn(_, _, _),
+            );
+            builder.add_method(
+                sel!(mdPreviewCloseTab:),
+                close_tab as extern "C" fn(_, _, _),
             );
             builder.add_method(
                 sel!(mdPreviewShowFind:),
@@ -2547,11 +2799,12 @@ fn install_macos_menu(proxy: EventLoopProxy<UserEvent>, theme: ThemeChoice) {
         controller,
         mtm,
     ));
-    file_menu.addItem(&item(
-        "Close Window",
-        Some(sel!(performClose:)),
+    file_menu.addItem(&command_item(
+        "Close Tab",
+        sel!(mdPreviewCloseTab:),
         "w",
         NSEventModifierFlags::Command,
+        controller,
         mtm,
     ));
     file_menu.addItem(&NSMenuItem::separatorItem(mtm));
@@ -3060,6 +3313,281 @@ fn apply_linux_webkit_compat_env() {
 #[cfg(not(target_os = "linux"))]
 fn apply_linux_webkit_compat_env() {}
 
+fn is_supported_document(path: &Path) -> bool {
+    path.extension()
+        .map(|extension| {
+            matches!(
+                extension.to_string_lossy().to_ascii_lowercase().as_str(),
+                "md" | "markdown" | "mdown" | "mkd" | "txt"
+            )
+        })
+        .unwrap_or(false)
+}
+
+fn install_file_watcher(
+    holder: &Arc<Mutex<Option<notify::RecommendedWatcher>>>,
+    proxy: &EventLoopProxy<UserEvent>,
+    last_self_write: &Arc<Mutex<Option<Instant>>>,
+    path: Option<PathBuf>,
+) {
+    let mut current = holder.lock().unwrap();
+    *current = None;
+    let Some(path) = path else {
+        return;
+    };
+    let target_path = path.clone();
+    let callback_path = path.clone();
+    let proxy = proxy.clone();
+    let last_self_write = Arc::clone(last_self_write);
+    if let Ok(mut watcher) = notify::recommended_watcher(move |result: Result<Event, _>| {
+        if let Ok(event) = result {
+            if event_should_reload_file(&event, &callback_path) {
+                let suppress = last_self_write
+                    .lock()
+                    .unwrap()
+                    .map(|time| time.elapsed() < Duration::from_millis(500))
+                    .unwrap_or(false);
+                if !suppress {
+                    let _ = proxy.send_event(UserEvent::FileChanged(callback_path.clone()));
+                }
+            }
+        }
+    }) {
+        let scope = watch_scope_for_file(&target_path);
+        if scope.exists() && watcher.watch(scope, RecursiveMode::NonRecursive).is_ok() {
+            *current = Some(watcher);
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum FinderAction {
+    Create { folder: PathBuf, kind: String },
+    Terminal { folder: PathBuf },
+}
+
+fn parse_finder_action(value: &str) -> Option<FinderAction> {
+    let url = url::Url::parse(value).ok()?;
+    if url.scheme() != "mdpreview" || url.host_str() != Some("finder") {
+        return None;
+    }
+    let query = url.query_pairs().collect::<HashMap<_, _>>();
+    let folder = PathBuf::from(query.get("path")?.as_ref());
+    match query.get("action")?.as_ref() {
+        "create" => Some(FinderAction::Create {
+            folder,
+            kind: query
+                .get("kind")
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "md".to_string()),
+        }),
+        "terminal" => Some(FinderAction::Terminal { folder }),
+        _ => None,
+    }
+}
+
+fn create_finder_file(folder: &Path, kind: &str) -> std::io::Result<PathBuf> {
+    if !folder.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Finder target folder does not exist",
+        ));
+    }
+    let (extension, contents): (&str, &[u8]) = match kind {
+        "txt" => ("txt", b""),
+        "json" => ("json", b"{}\n"),
+        "html" => (
+            "html",
+            b"<!doctype html>\n<html lang=\"zh-CN\">\n<head>\n  <meta charset=\"utf-8\">\n  <title></title>\n</head>\n<body>\n</body>\n</html>\n",
+        ),
+        _ => ("md", b""),
+    };
+    let mut path = folder.join(format!("新建.{extension}"));
+    let mut index = 2;
+    while path.exists() {
+        path = folder.join(format!("新建 {index}.{extension}"));
+        index += 1;
+    }
+    fs::write(&path, contents)?;
+    Ok(path)
+}
+
+fn open_terminal(folder: &Path) -> bool {
+    std::process::Command::new("open")
+        .args(["-a", "Terminal"])
+        .arg(folder)
+        .spawn()
+        .is_ok()
+}
+
+#[cfg(target_os = "macos")]
+fn register_finder_extension() {
+    let Ok(executable) = std::env::current_exe() else {
+        return;
+    };
+    let Some(contents) = executable.parent().and_then(Path::parent) else {
+        return;
+    };
+    let Some(bundle) = contents.parent() else {
+        return;
+    };
+    let extension = bundle.join("Contents/PlugIns/MDPreviewFinderExtension.appex");
+    if bundle.extension().and_then(|value| value.to_str()) != Some("app") || !extension.exists() {
+        return;
+    }
+
+    let marker = config_dir().join(".finder-extension-onboarded-v1");
+    let lsregister = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
+    let _ = std::process::Command::new(lsregister)
+        .args(["-f", "-R", "-trusted"])
+        .arg(bundle)
+        .status();
+    let _ = std::process::Command::new("pluginkit")
+        .arg("-a")
+        .arg(bundle)
+        .status();
+    let _ = std::process::Command::new("pluginkit")
+        .args(["-e", "use", "-i", "com.mdpreview.app.FinderExtension"])
+        .status();
+
+    if marker.exists() {
+        return;
+    }
+    let active = std::process::Command::new("pluginkit")
+        .args(["-m", "-A", "-p", "com.apple.FinderSync"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| String::from_utf8_lossy(&output.stdout).into_owned())
+        .map(|output| {
+            output.lines().any(|line| {
+                line.trim_start().starts_with('+')
+                    && line.contains("com.mdpreview.app.FinderExtension")
+            })
+        })
+        .unwrap_or(false);
+    if !active {
+        show_info_dialog(
+            "Enable the Finder Extension",
+            "Open System Settings > General > Login Items & Extensions > Finder, then enable MD Preview.",
+        );
+    }
+    let _ = fs::create_dir_all(config_dir());
+    let _ = fs::write(marker, "1");
+}
+
+#[cfg(not(target_os = "macos"))]
+fn register_finder_extension() {}
+
+fn persist_session(session: &DocumentSession) {
+    if let Err(error) = session.save(&session_path()) {
+        eprintln!("Could not save tab session: {error}");
+    }
+}
+
+fn update_tabs(webview: &WebView, session: &DocumentSession) {
+    let state = tabs_json(session);
+    let _ = webview.evaluate_script(&format!("if(window.__setTabs)window.__setTabs({state});"));
+}
+
+fn update_window_title(window: &Window, session: &DocumentSession) {
+    let title = session
+        .active()
+        .map(|tab| {
+            let name = tab
+                .path
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_else(|| tab.path.to_string_lossy().to_string());
+            format!("{}{} — MD Preview", if tab.dirty { "• " } else { "" }, name)
+        })
+        .unwrap_or_else(|| "MD Preview".to_string());
+    window.set_title(&title);
+}
+
+fn render_active_document(
+    webview: &WebView,
+    window: &Window,
+    session: &mut DocumentSession,
+    recent_files: &Arc<Mutex<Vec<PathBuf>>>,
+    enhance_flags: &Arc<Mutex<EnhanceFlags>>,
+    loaded_enhancers: &mut EnhanceFlags,
+    strings: &Strings,
+) {
+    let Some(active) = session.active().cloned() else {
+        APP_DIRTY.store(false, Ordering::SeqCst);
+        let html = empty_preview_html(strings, &recent_files.lock().unwrap());
+        let _ = webview.evaluate_script(&format!(
+            "if(window.__setEmptyPreview)window.__setEmptyPreview('{}');",
+            escape_js(&html)
+        ));
+        update_tabs(webview, session);
+        update_window_title(window, session);
+        return;
+    };
+
+    match fs::read_to_string(&active.path) {
+        Ok(raw) => {
+            if let Some(tab) = session.get_mut(active.id) {
+                tab.missing = false;
+            }
+            remember_recent_file(recent_files, &active.path);
+            let html = md_to_html_with_base(&raw, active.path.parent());
+            let base_href = base_href_for_file(&active.path).unwrap_or_default();
+            let flags = enhance_flags_for(&raw);
+            *enhance_flags.lock().unwrap() = flags;
+            let _ = webview.evaluate_script(&format!(
+                "if(window.__setContent)window.__setContent('{}', '{}', '{}', {}, {});",
+                escape_js(&html),
+                escape_js(&raw),
+                escape_js(&base_href),
+                flags.math,
+                flags.mermaid
+            ));
+            for script in build_enhancer_bootstrap(flags, *loaded_enhancers) {
+                let _ = webview.evaluate_script(&script);
+            }
+            loaded_enhancers.math |= flags.math;
+            loaded_enhancers.mermaid |= flags.mermaid;
+            if active.edit_on_open {
+                if let Some(tab) = session.get_mut(active.id) {
+                    tab.edit_on_open = false;
+                }
+                let _ = webview.evaluate_script(
+                    "if(window.__mdPreviewEnterEdit)window.__mdPreviewEnterEdit();",
+                );
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            if let Some(tab) = session.get_mut(active.id) {
+                tab.missing = true;
+            }
+            if active.dirty {
+                show_warning_dialog(
+                    strings.missing_title,
+                    "The file disappeared while it still has unsaved edits. The editor content has been kept.",
+                );
+            } else {
+                let html = missing_preview_html(active.id, &active.path, strings);
+                let _ = webview.evaluate_script(&format!(
+                    "if(window.__setMissing)window.__setMissing('{}');",
+                    escape_js(&html)
+                ));
+            }
+        }
+        Err(error) => {
+            show_warning_dialog(strings.cannot_read, &error.to_string());
+        }
+    }
+
+    APP_DIRTY.store(
+        session.active().map(|tab| tab.dirty).unwrap_or(false),
+        Ordering::SeqCst,
+    );
+    update_tabs(webview, session);
+    update_window_title(window, session);
+}
+
 fn main() {
     apply_linux_webkit_compat_env();
 
@@ -3075,31 +3603,44 @@ fn main() {
     };
     bench_log("main_start");
 
-    // CLI: md-preview [file.md]
-    let arg1 = std::env::args().nth(1);
-    if arg1.as_deref().map(is_help_arg).unwrap_or(false) {
+    // CLI: md-preview [--edit] [file.md ...]
+    let args = std::env::args().skip(1).collect::<Vec<_>>();
+    if args.iter().any(|arg| is_help_arg(arg)) {
         print_help();
         return;
     }
+    let edit_from_cli = args.iter().any(|arg| arg == "--edit");
+    let cli_paths = args
+        .into_iter()
+        .filter(|arg| arg != "--edit")
+        .map(PathBuf::from)
+        .map(|path| {
+            if path.is_relative() {
+                std::env::current_dir().unwrap_or_default().join(path)
+            } else {
+                path
+            }
+        })
+        .filter(|path| {
+            if path.exists() && is_supported_document(path) {
+                true
+            } else {
+                eprintln!("File not found or unsupported: {}", path.display());
+                false
+            }
+        })
+        .collect::<Vec<_>>();
 
     let lang = detect_lang();
     let strings = Strings::for_lang(lang);
     register_as_default(lang);
+    register_finder_extension();
     bench_log("after_register");
 
-    let initial_file: Option<PathBuf> = arg1.map(PathBuf::from).and_then(|p| {
-        let p = if p.is_relative() {
-            std::env::current_dir().unwrap_or_default().join(p)
-        } else {
-            p
-        };
-        if p.exists() {
-            Some(p)
-        } else {
-            eprintln!("File not found: {}", p.display());
-            None
-        }
-    });
+    let mut initial_session = DocumentSession::load(&session_path());
+    for path in cli_paths {
+        initial_session.open(path, edit_from_cli);
+    }
 
     let event_loop: EventLoop<UserEvent> = EventLoopBuilder::with_user_event().build();
     let proxy = event_loop.create_proxy();
@@ -3107,10 +3648,10 @@ fn main() {
     install_macos_menu(proxy.clone(), initial_theme);
     let native_updater_enabled = native_updater_enabled();
 
-    let title = initial_file
-        .as_ref()
-        .and_then(|p| p.file_name())
-        .map(|n| format!("{} — MD Preview", n.to_string_lossy()))
+    let title = initial_session
+        .active()
+        .and_then(|tab| tab.path.file_name())
+        .map(|name| format!("{} — MD Preview", name.to_string_lossy()))
         .unwrap_or_else(|| "MD Preview".to_string());
 
     let geom = load_window_geom()
@@ -3139,31 +3680,14 @@ fn main() {
     }
 
     let recent_files: Arc<Mutex<Vec<PathBuf>>> = Arc::new(Mutex::new(load_recent_files()));
-    if let Some(path) = &initial_file {
-        remember_recent_file(&recent_files, path);
-    }
 
     let mut initial_flags = EnhanceFlags::default();
-    let initial_page = match &initial_file {
-        Some(path) => fs::read_to_string(path).ok().map_or_else(
-            || {
-                build_page(
-                    &format!(
-                        r#"<div class="empty"><div class="icon">#</div><div>{}</div><button class="empty-open" type="button" data-open-file>{}</button></div>"#,
-                        html_escape_text(strings.cannot_read),
-                        html_escape_text(strings.open_file)
-                    ),
-                    "",
-                    None,
-                    EnhanceFlags::default(),
-                    &strings,
-                    true,
-                    native_updater_enabled,
-                )
-            },
-            |raw| {
-                let html_body = md_to_html_with_base(&raw, path.parent());
-                let base_href = base_href_for_file(path);
+    let initial_page = match initial_session.active().cloned() {
+        Some(tab) => match fs::read_to_string(&tab.path) {
+            Ok(raw) => {
+                remember_recent_file(&recent_files, &tab.path);
+                let html_body = md_to_html_with_base(&raw, tab.path.parent());
+                let base_href = base_href_for_file(&tab.path);
                 initial_flags = enhance_flags_for(&raw);
                 build_page(
                     &html_body,
@@ -3174,8 +3698,36 @@ fn main() {
                     false,
                     native_updater_enabled,
                 )
-            },
-        ),
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                if let Some(active) = initial_session.active_mut() {
+                    active.missing = true;
+                }
+                build_page(
+                    &missing_preview_html(tab.id, &tab.path, &strings),
+                    "",
+                    None,
+                    EnhanceFlags::default(),
+                    &strings,
+                    false,
+                    native_updater_enabled,
+                )
+            }
+            Err(error) => build_page(
+                &format!(
+                    r#"<div class="empty"><div class="icon">#</div><div>{}: {}</div><button class="empty-open" type="button" data-open-file>{}</button></div>"#,
+                    html_escape_text(strings.cannot_read),
+                    html_escape_text(&error.to_string()),
+                    html_escape_text(strings.open_file)
+                ),
+                "",
+                None,
+                EnhanceFlags::default(),
+                &strings,
+                true,
+                native_updater_enabled,
+            ),
+        },
         None => build_page(
             &empty_preview_html(&strings, &recent_files.lock().unwrap()),
             "",
@@ -3187,10 +3739,11 @@ fn main() {
         ),
     };
 
-    let file_path: Arc<Mutex<Option<PathBuf>>> = Arc::new(Mutex::new(initial_file));
+    persist_session(&initial_session);
+    let document_session = Arc::new(Mutex::new(initial_session));
     let enhance_flags: Arc<Mutex<EnhanceFlags>> = Arc::new(Mutex::new(initial_flags));
     let last_self_write: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
-    let file_path_for_ipc = Arc::clone(&file_path);
+    let session_for_ipc = Arc::clone(&document_session);
     let recent_files_for_ipc = Arc::clone(&recent_files);
     let last_self_write_for_ipc = Arc::clone(&last_self_write);
     let proxy_for_ipc = proxy.clone();
@@ -3229,24 +3782,65 @@ fn main() {
         .with_ipc_handler(move |msg| {
             let body = msg.body();
             if body == "open" {
-                if let Some(path) = rfd::FileDialog::new()
-                    .add_filter("Markdown", &["md", "markdown", "mdown", "mkd", "txt"])
-                    .pick_file()
-                {
-                    *file_path_for_ipc.lock().unwrap() = Some(path);
-                    let _ = proxy_for_ipc.send_event(UserEvent::FileChanged);
-                }
+                let _ = proxy_for_ipc.send_event(UserEvent::OpenFile);
             } else if let Some(index) = body.strip_prefix("open-recent:") {
                 if let Ok(index) = index.parse::<usize>() {
                     let path = recent_files_for_ipc.lock().unwrap().get(index).cloned();
                     if let Some(path) = path {
                         if path.exists() {
-                            *file_path_for_ipc.lock().unwrap() = Some(path);
-                            let _ = proxy_for_ipc.send_event(UserEvent::FileChanged);
+                            let _ =
+                                proxy_for_ipc.send_event(UserEvent::OpenPaths(vec![path], false));
                         } else if forget_recent_file(&recent_files_for_ipc, &path) {
                             let _ = proxy_for_ipc.send_event(UserEvent::RecentChanged);
                         }
                     }
+                }
+            } else if let Some(rest) = body.strip_prefix("tab-action:") {
+                let (header, pending_content) = rest
+                    .split_once('\n')
+                    .map(|(header, content)| (header, Some(content)))
+                    .unwrap_or((rest, None));
+                let mut parts = header.splitn(2, ':');
+                let action = parts.next().unwrap_or("");
+                let id = parts.next().and_then(|value| value.parse::<u64>().ok());
+                let Some(id) = id else {
+                    return;
+                };
+                if let Some(content) = pending_content {
+                    let path = session_for_ipc
+                        .lock()
+                        .unwrap()
+                        .active()
+                        .map(|tab| tab.path.clone());
+                    let Some(path) = path else {
+                        return;
+                    };
+                    *last_self_write_for_ipc.lock().unwrap() = Some(Instant::now());
+                    match fs::write(&path, content) {
+                        Ok(()) => {
+                            let _ = proxy_for_ipc.send_event(UserEvent::FileSaved(path));
+                        }
+                        Err(error) => {
+                            let _ = proxy_for_ipc.send_event(UserEvent::SaveFailed(format!(
+                                "{}: {error}",
+                                path.display()
+                            )));
+                            return;
+                        }
+                    }
+                }
+                match action {
+                    "activate" => {
+                        let _ = proxy_for_ipc.send_event(UserEvent::ActivateTab(id));
+                    }
+                    "close" => {
+                        let _ = proxy_for_ipc.send_event(UserEvent::CloseTab(id));
+                    }
+                    _ => {}
+                }
+            } else if let Some(id) = body.strip_prefix("locate-tab:") {
+                if let Ok(id) = id.parse::<u64>() {
+                    let _ = proxy_for_ipc.send_event(UserEvent::LocateTab(id));
                 }
             } else if body == "dirty:1" {
                 let _ = proxy_for_ipc.send_event(UserEvent::DirtyChanged(true));
@@ -3257,7 +3851,14 @@ fn main() {
             } else if body == "ready" {
                 let _ = proxy_for_ipc.send_event(UserEvent::Ready);
             } else if body == "refresh" {
-                let _ = proxy_for_ipc.send_event(UserEvent::FileChanged);
+                if let Some(path) = session_for_ipc
+                    .lock()
+                    .unwrap()
+                    .active()
+                    .map(|tab| tab.path.clone())
+                {
+                    let _ = proxy_for_ipc.send_event(UserEvent::FileChanged(path));
+                }
             } else if let Some(url) = body.strip_prefix("open-url:") {
                 if is_allowed_update_url(url) {
                     let _ = open::that(url);
@@ -3268,7 +3869,11 @@ fn main() {
                 let download_url = parts.next().filter(|value| !value.is_empty());
                 let digest = parts.next().filter(|value| !value.is_empty());
                 let tag = parts.next().filter(|value| !value.is_empty());
-                let relaunch_file = file_path_for_ipc.lock().unwrap().clone();
+                let relaunch_file = session_for_ipc
+                    .lock()
+                    .unwrap()
+                    .active()
+                    .map(|tab| tab.path.clone());
                 if !check_native_updates(download_url, digest, relaunch_file) {
                     if let Some(url) = download_url.filter(|url| is_allowed_update_url(url)) {
                         if confirm_open_update(tag.unwrap_or("update")) {
@@ -3305,30 +3910,37 @@ fn main() {
                     }
                 }
             } else if let Some(content) = body.strip_prefix("save:") {
-                let fp = file_path_for_ipc.lock().unwrap().clone();
-                if let Some(path) = fp {
+                let path = session_for_ipc
+                    .lock()
+                    .unwrap()
+                    .active()
+                    .map(|tab| tab.path.clone());
+                if let Some(path) = path {
                     *last_self_write_for_ipc.lock().unwrap() = Some(Instant::now());
-                    if fs::write(&path, content).is_ok() {
-                        let _ = proxy_for_ipc.send_event(UserEvent::FileSaved);
+                    match fs::write(&path, content) {
+                        Ok(()) => {
+                            let _ = proxy_for_ipc.send_event(UserEvent::FileSaved(path));
+                        }
+                        Err(error) => {
+                            let _ = proxy_for_ipc.send_event(UserEvent::SaveFailed(format!(
+                                "{}: {error}",
+                                path.display()
+                            )));
+                        }
                     }
                 }
             }
         })
         .with_drag_drop_handler({
-            let file_path = Arc::clone(&file_path);
             let proxy = proxy.clone();
             move |event| {
                 if let wry::DragDropEvent::Drop { paths, .. } = event {
-                    if let Some(p) = paths.into_iter().find(|p| {
-                        p.extension()
-                            .map(|e| {
-                                let e = e.to_string_lossy().to_lowercase();
-                                e == "md" || e == "markdown" || e == "txt"
-                            })
-                            .unwrap_or(false)
-                    }) {
-                        *file_path.lock().unwrap() = Some(p);
-                        let _ = proxy.send_event(UserEvent::FileChanged);
+                    let paths = paths
+                        .into_iter()
+                        .filter(|path| is_supported_document(path))
+                        .collect::<Vec<_>>();
+                    if !paths.is_empty() {
+                        let _ = proxy.send_event(UserEvent::OpenPaths(paths, false));
                     }
                 }
                 true
@@ -3348,6 +3960,21 @@ fn main() {
     #[cfg(not(target_os = "linux"))]
     let webview = builder.build(&window).expect("failed to build webview");
     bench_log("webview_built");
+    let session_for_event = Arc::clone(&document_session);
+    update_tabs(&webview, &session_for_event.lock().unwrap());
+    if session_for_event
+        .lock()
+        .unwrap()
+        .active()
+        .map(|tab| tab.edit_on_open && !tab.missing)
+        .unwrap_or(false)
+    {
+        let _ = webview
+            .evaluate_script("if(window.__mdPreviewEnterEdit)window.__mdPreviewEnterEdit();");
+        if let Some(tab) = session_for_event.lock().unwrap().active_mut() {
+            tab.edit_on_open = false;
+        }
+    }
 
     // hljs + extra language packs aren't part of first-paint HTML anymore.
     // We push them in via evaluate_script the moment the webview tells us
@@ -3361,142 +3988,213 @@ fn main() {
 
     // File watcher state
     let watcher_holder: Arc<Mutex<Option<notify::RecommendedWatcher>>> = Arc::new(Mutex::new(None));
-    let file_path_for_event = Arc::clone(&file_path);
     let watcher_for_event = Arc::clone(&watcher_holder);
-
-    // If opened with CLI arg, setup watcher immediately
-    if file_path_for_event.lock().unwrap().is_some() {
-        let proxy_init = proxy.clone();
-        let last_self_write_init = Arc::clone(&last_self_write);
-        let fp = file_path_for_event.lock().unwrap().clone();
-        if let Some(ref path) = fp {
-            let target_path = path.clone();
-            if let Ok(mut watcher) = notify::recommended_watcher(move |res: Result<Event, _>| {
-                if let Ok(ev) = res {
-                    if event_should_reload_file(&ev, &target_path) {
-                        let suppress = last_self_write_init
-                            .lock()
-                            .unwrap()
-                            .map(|t| t.elapsed() < Duration::from_millis(500))
-                            .unwrap_or(false);
-                        if !suppress {
-                            let _ = proxy_init.send_event(UserEvent::FileChanged);
-                        }
-                    }
-                }
-            }) {
-                let _ = watcher.watch(watch_scope_for_file(path), RecursiveMode::NonRecursive);
-                *watcher_holder.lock().unwrap() = Some(watcher);
-            }
-        }
-    }
+    let initial_watch_path = session_for_event
+        .lock()
+        .unwrap()
+        .active()
+        .map(|tab| tab.path.clone());
+    install_file_watcher(
+        &watcher_holder,
+        &proxy,
+        &last_self_write,
+        initial_watch_path,
+    );
 
     let mut loaded_enhancers = EnhanceFlags::default();
+    let mut pending_window_close = false;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
         match event {
             TaoEvent::UserEvent(UserEvent::OpenFile) => {
+                if session_for_event
+                    .lock()
+                    .unwrap()
+                    .active()
+                    .map(|tab| tab.dirty)
+                    .unwrap_or(false)
+                {
+                    let _ = webview.evaluate_script(
+                        "if(window.__mdPreviewOpenFile)window.__mdPreviewOpenFile();",
+                    );
+                    return;
+                }
+                if let Some(paths) = rfd::FileDialog::new()
+                    .add_filter("Markdown", &["md", "markdown", "mdown", "mkd", "txt"])
+                    .pick_files()
+                {
+                    let _ = proxy.send_event(UserEvent::OpenPaths(paths, false));
+                }
+            }
+            TaoEvent::UserEvent(UserEvent::OpenPaths(paths, edit_on_open)) => {
+                let mut session = session_for_event.lock().unwrap();
+                let previous_active = session.active_id;
+                let preserve_active = session.active().map(|tab| tab.dirty).unwrap_or(false);
+                for path in paths.into_iter().filter(|path| is_supported_document(path)) {
+                    session.open(path, edit_on_open);
+                }
+                if preserve_active {
+                    if let Some(id) = previous_active {
+                        session.activate(id);
+                    }
+                }
+                persist_session(&session);
+                if preserve_active {
+                    update_tabs(&webview, &session);
+                } else {
+                    render_active_document(
+                        &webview,
+                        &window,
+                        &mut session,
+                        &recent_files,
+                        &enhance_flags,
+                        &mut loaded_enhancers,
+                        &strings,
+                    );
+                }
+                let path = session.active().map(|tab| tab.path.clone());
+                drop(session);
+                install_file_watcher(&watcher_for_event, &proxy, &last_self_write, path);
+            }
+            TaoEvent::UserEvent(UserEvent::ActivateTab(id)) => {
+                let mut session = session_for_event.lock().unwrap();
+                if session.activate(id) {
+                    persist_session(&session);
+                    render_active_document(
+                        &webview,
+                        &window,
+                        &mut session,
+                        &recent_files,
+                        &enhance_flags,
+                        &mut loaded_enhancers,
+                        &strings,
+                    );
+                    let path = session.active().map(|tab| tab.path.clone());
+                    drop(session);
+                    install_file_watcher(&watcher_for_event, &proxy, &last_self_write, path);
+                }
+            }
+            TaoEvent::UserEvent(UserEvent::CloseTab(id)) => {
+                let mut session = session_for_event.lock().unwrap();
+                let was_active = session.active_id == Some(id);
+                if session.close(id) {
+                    persist_session(&session);
+                    if was_active {
+                        render_active_document(
+                            &webview,
+                            &window,
+                            &mut session,
+                            &recent_files,
+                            &enhance_flags,
+                            &mut loaded_enhancers,
+                            &strings,
+                        );
+                        let path = session.active().map(|tab| tab.path.clone());
+                        drop(session);
+                        install_file_watcher(&watcher_for_event, &proxy, &last_self_write, path);
+                    } else {
+                        update_tabs(&webview, &session);
+                    }
+                }
+            }
+            TaoEvent::UserEvent(UserEvent::CloseActiveTab) => {
+                if session_for_event.lock().unwrap().active_id.is_some() {
+                    let _ = webview.evaluate_script(
+                        "if(window.__mdPreviewCloseActiveTab)window.__mdPreviewCloseActiveTab();",
+                    );
+                } else {
+                    save_window_geom(&window);
+                    *control_flow = ControlFlow::Exit;
+                }
+            }
+            TaoEvent::UserEvent(UserEvent::LocateTab(id)) => {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter("Markdown", &["md", "markdown", "mdown", "mkd", "txt"])
                     .pick_file()
                 {
-                    *file_path_for_event.lock().unwrap() = Some(path);
-                    let _ = proxy.send_event(UserEvent::FileChanged);
-                }
-            }
-            TaoEvent::UserEvent(UserEvent::FileChanged) => {
-                let fp = file_path_for_event.lock().unwrap().clone();
-                if let Some(ref path) = fp {
-                    if let Ok(raw) = fs::read_to_string(path) {
-                        remember_recent_file(&recent_files, path);
-                        let html = md_to_html_with_base(&raw, path.parent());
-                        let base_href = base_href_for_file(path).unwrap_or_default();
-                        let flags = enhance_flags_for(&raw);
-                        *enhance_flags.lock().unwrap() = flags;
-                        let js = format!(
-                            "if(window.__setContent)window.__setContent('{}', '{}', '{}', {}, {});",
-                            escape_js(&html),
-                            escape_js(&raw),
-                            escape_js(&base_href),
-                            flags.math,
-                            flags.mermaid
+                    let mut session = session_for_event.lock().unwrap();
+                    if session.relocate(id, path) && session.activate(id) {
+                        persist_session(&session);
+                        render_active_document(
+                            &webview,
+                            &window,
+                            &mut session,
+                            &recent_files,
+                            &enhance_flags,
+                            &mut loaded_enhancers,
+                            &strings,
                         );
-                        let _ = webview.evaluate_script(&js);
-                        for js in build_enhancer_bootstrap(flags, loaded_enhancers) {
-                            let _ = webview.evaluate_script(&js);
-                        }
-                        loaded_enhancers.math |= flags.math;
-                        loaded_enhancers.mermaid |= flags.mermaid;
-
-                        let name = path
-                            .file_name()
-                            .map(|n| n.to_string_lossy().to_string())
-                            .unwrap_or_default();
-                        window.set_title(&format!("{} — MD Preview", name));
-                    }
-
-                    // Re-setup watcher for current file
-                    let mut w = watcher_for_event.lock().unwrap();
-                    *w = None;
-                    let proxy_clone = proxy.clone();
-                    let last_self_write_cb = Arc::clone(&last_self_write);
-                    let target_path = path.clone();
-                    if let Ok(mut new_watcher) =
-                        notify::recommended_watcher(move |res: Result<Event, _>| {
-                            if let Ok(ev) = res {
-                                if event_should_reload_file(&ev, &target_path) {
-                                    let suppress = last_self_write_cb
-                                        .lock()
-                                        .unwrap()
-                                        .map(|t| t.elapsed() < Duration::from_millis(500))
-                                        .unwrap_or(false);
-                                    if !suppress {
-                                        let _ = proxy_clone.send_event(UserEvent::FileChanged);
-                                    }
-                                }
-                            }
-                        })
-                    {
-                        let _ = new_watcher
-                            .watch(watch_scope_for_file(path), RecursiveMode::NonRecursive);
-                        *w = Some(new_watcher);
+                        let path = session.active().map(|tab| tab.path.clone());
+                        drop(session);
+                        install_file_watcher(&watcher_for_event, &proxy, &last_self_write, path);
+                    } else {
+                        show_warning_dialog("Already Open", "That file is already open in another tab.");
                     }
                 }
             }
-            TaoEvent::UserEvent(UserEvent::FileSaved) => {
-                let fp = file_path_for_event.lock().unwrap().clone();
-                if let Some(ref path) = fp {
-                    if let Ok(raw) = fs::read_to_string(path) {
+            TaoEvent::UserEvent(UserEvent::FileChanged(path)) => {
+                let mut session = session_for_event.lock().unwrap();
+                if session.active().map(|tab| tab.path.as_path()) == Some(path.as_path()) {
+                    render_active_document(
+                        &webview,
+                        &window,
+                        &mut session,
+                        &recent_files,
+                        &enhance_flags,
+                        &mut loaded_enhancers,
+                        &strings,
+                    );
+                    persist_session(&session);
+                }
+            }
+            TaoEvent::UserEvent(UserEvent::FileSaved(path)) => {
+                let mut session = session_for_event.lock().unwrap();
+                let active_matches = session.active().map(|tab| tab.path.as_path()) == Some(path.as_path());
+                if let Some(tab) = session.tabs.iter_mut().find(|tab| tab.path == path) {
+                    tab.dirty = false;
+                    tab.missing = false;
+                }
+                APP_DIRTY.store(false, Ordering::SeqCst);
+                if active_matches {
+                    if let Ok(raw) = fs::read_to_string(&path) {
                         let html = md_to_html_with_base(&raw, path.parent());
                         let flags = enhance_flags_for(&raw);
                         *enhance_flags.lock().unwrap() = flags;
-                        let js = format!(
-                            "if(window.__setPreview)window.__setPreview('{}', {}, {});",
+                        let _ = webview.evaluate_script(&format!(
+                            "if(window.__setPreview)window.__setPreview('{}', {}, {});if(window.__markSaved)window.__markSaved();",
                             escape_js(&html),
                             flags.math,
                             flags.mermaid
-                        );
-                        let _ = webview.evaluate_script(&js);
-                        for js in build_enhancer_bootstrap(flags, loaded_enhancers) {
-                            let _ = webview.evaluate_script(&js);
+                        ));
+                        for script in build_enhancer_bootstrap(flags, loaded_enhancers) {
+                            let _ = webview.evaluate_script(&script);
                         }
                         loaded_enhancers.math |= flags.math;
                         loaded_enhancers.mermaid |= flags.mermaid;
                     }
                 }
+                persist_session(&session);
+                update_tabs(&webview, &session);
+                update_window_title(&window, &session);
+                if pending_window_close {
+                    save_window_geom(&window);
+                    *control_flow = ControlFlow::Exit;
+                }
+            }
+            TaoEvent::UserEvent(UserEvent::SaveFailed(error)) => {
+                pending_window_close = false;
+                show_warning_dialog("Could Not Save", &error);
             }
             TaoEvent::UserEvent(UserEvent::DirtyChanged(dirty)) => {
                 APP_DIRTY.store(dirty, Ordering::SeqCst);
-                let fp = file_path_for_event.lock().unwrap().clone();
-                let name = fp
-                    .as_ref()
-                    .and_then(|p| p.file_name())
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| "MD Preview".to_string());
-                let prefix = if dirty { "• " } else { "" };
-                window.set_title(&format!("{}{} — MD Preview", prefix, name));
+                let mut session = session_for_event.lock().unwrap();
+                if let Some(tab) = session.active_mut() {
+                    tab.dirty = dirty;
+                }
+                update_tabs(&webview, &session);
+                update_window_title(&window, &session);
             }
             TaoEvent::UserEvent(UserEvent::ToggleEdit) => {
                 let _ = webview.evaluate_script(
@@ -3527,7 +4225,11 @@ fn main() {
             TaoEvent::UserEvent(UserEvent::UpdateCheckResult(result)) => match result {
                 UpdateCheckResult::Available { tag, url, digest } => {
                     if is_allowed_update_url(&url) && confirm_open_update(&tag) {
-                        let relaunch_file = file_path_for_event.lock().unwrap().clone();
+                        let relaunch_file = session_for_event
+                            .lock()
+                            .unwrap()
+                            .active()
+                            .map(|tab| tab.path.clone());
                         if !check_native_updates(
                             Some(url.as_str()),
                             digest.as_deref(),
@@ -3572,27 +4274,57 @@ fn main() {
                 }
                 loaded_enhancers.math |= flags.math;
                 loaded_enhancers.mermaid |= flags.mermaid;
+                update_tabs(&webview, &session_for_event.lock().unwrap());
                 if bench {
                     eprintln!("[bench] +{}ms ready", t0.elapsed().as_millis());
                     *control_flow = ControlFlow::Exit;
                 }
             }
-            // macOS: double-click .md file in Finder opens the app with this event
+            // macOS: Finder file opens and embedded Finder Sync actions arrive here.
             TaoEvent::Opened { urls } => {
+                let mut paths = Vec::new();
                 for url in urls {
                     if let Ok(path) = url.to_file_path() {
-                        *file_path_for_event.lock().unwrap() = Some(path);
-                        let _ = proxy.send_event(UserEvent::FileChanged);
-                        break;
+                        if is_supported_document(&path) {
+                            paths.push(path);
+                        }
+                        continue;
                     }
+                    if let Some(action) = parse_finder_action(url.as_str()) {
+                        match action {
+                            FinderAction::Create { folder, kind } => match create_finder_file(&folder, &kind) {
+                                Ok(path) if kind == "md" => {
+                                    let _ = proxy.send_event(UserEvent::OpenPaths(vec![path], true));
+                                }
+                                Ok(_) => {}
+                                Err(error) => show_warning_dialog("Could Not Create File", &error.to_string()),
+                            },
+                            FinderAction::Terminal { folder } => {
+                                if !open_terminal(&folder) {
+                                    show_warning_dialog("Could Not Open Terminal", &folder.to_string_lossy());
+                                }
+                            }
+                        }
+                    }
+                }
+                if !paths.is_empty() {
+                    let _ = proxy.send_event(UserEvent::OpenPaths(paths, false));
                 }
             }
             TaoEvent::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
-                save_window_geom(&window);
-                *control_flow = ControlFlow::Exit;
+                if APP_DIRTY.load(Ordering::SeqCst) && !pending_window_close {
+                    pending_window_close = true;
+                    let _ = webview.evaluate_script(
+                        "if(window.__mdPreviewSave)window.__mdPreviewSave();",
+                    );
+                } else if !pending_window_close {
+                    save_window_geom(&window);
+                    persist_session(&session_for_event.lock().unwrap());
+                    *control_flow = ControlFlow::Exit;
+                }
             }
             _ => {}
         }

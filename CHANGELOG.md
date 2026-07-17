@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0
+
+- Added a native desktop tab bar for opening multiple Markdown and text documents in one window, with per-tab dirty and missing-file states.
+- Restored tab order and the active document across launches while keeping inactive document contents lazy-loaded from disk.
+- Kept deleted or moved files visible as missing tabs with Locate and Close actions instead of silently discarding them.
+- Changed `Cmd/Ctrl+W` to close the active tab first, with save-before-switch and save-before-close protection for edited documents.
+- Integrated a Finder Sync extension into the macOS app with New Markdown, Text, JSON, and HTML actions, Copy Path, and Open in Terminal.
+- Made Finder's New Markdown action open the created file directly in MD Preview's source editor, eliminating the extra VS Code step.
+
 ## 1.1.25
 
 - Added the standard macOS `Cmd+W` / File -> Close Window command so Markdown files opened from Finder can be closed with the expected lightweight document shortcut.

@@ -139,11 +139,14 @@ require_release_assets() {
 verify_signed_outputs() {
   local dmg="target/MD-Preview-macOS-universal.dmg"
   local app="target/MD Preview.app"
+  local finder_extension="$app/Contents/PlugIns/MDPreviewFinderExtension.appex"
 
   test -f "$dmg"
   test -d "$app"
   xcrun stapler validate "$dmg"
   codesign --verify --deep --strict --verbose=2 "$app"
+  codesign -d --entitlements :- "$finder_extension" 2>&1 \
+    | grep -q 'com.apple.security.app-sandbox'
   spctl -a -t open --context context:primary-signature "$dmg"
 
   curl -fsSL "https://github.com/$REPO/releases/latest/download/appcast.xml" \

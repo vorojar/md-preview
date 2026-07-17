@@ -78,17 +78,31 @@ if "@page {{\n  margin: 12mm;\n}}" not in src:
 if "@media print {{" not in src or "#app {{ max-width: none; padding: 0; }}" not in src:
     raise SystemExit("src/main.rs must keep print media rules focused on preview output")
 PY
-  echo "[agent-verify] macOS close window shortcut"
+  echo "[agent-verify] desktop tabs and macOS close-tab shortcut"
   python3 - <<'PY'
 from pathlib import Path
 src = Path("src/main.rs").read_text()
-if '"Close Window"' not in src:
-    raise SystemExit("macOS File menu must expose Close Window")
-if "Some(sel!(performClose:))" not in src:
-    raise SystemExit("macOS Close Window must use AppKit performClose:")
+session = Path("src/session.rs").read_text()
+if 'id="tabbar"' not in src or "window.__setTabs" not in src:
+    raise SystemExit("desktop page must expose the top tab bar and deterministic tab renderer")
+if "session.json" not in src or "PersistedSession" not in session:
+    raise SystemExit("desktop tabs must persist a dedicated session separate from Recent")
+if '"Close Tab"' not in src or "mdPreviewCloseTab:" not in src:
+    raise SystemExit("macOS File menu must expose Close Tab through the tab state machine")
 if '"w",\n        NSEventModifierFlags::Command' not in src:
-    raise SystemExit("macOS Close Window must keep Cmd+W")
+    raise SystemExit("macOS Close Tab must keep Cmd+W")
+if "window.__setMissing" not in src or "data-locate-tab" not in src:
+    raise SystemExit("missing session files must keep their tab and offer relocation")
 PY
+  ran=1
+fi
+
+if [ -f macos/finder-extension/FinderSyncExtension.swift ]; then
+  echo "[agent-verify] Finder Sync integration contract"
+  grep -F 'com.apple.FinderSync' macos/finder-extension/project.yml >/dev/null
+  grep -F 'mdpreview' macos/finder-extension/FinderSyncExtension.swift >/dev/null
+  grep -F 'MDPreviewFinderExtension.appex' bundle.sh >/dev/null
+  grep -F 'CFBundleURLTypes' bundle.sh >/dev/null
   ran=1
 fi
 

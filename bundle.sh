@@ -25,11 +25,30 @@ rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
 mkdir -p "$APP_DIR/Contents/Frameworks"
+mkdir -p "$APP_DIR/Contents/PlugIns"
 
 cp target/release/md-preview-universal "$APP_DIR/Contents/MacOS/md-preview"
 cp assets/icon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 SPARKLE_DIR="$(scripts/fetch-sparkle.sh)"
 ditto "$SPARKLE_DIR/Sparkle.framework" "$APP_DIR/Contents/Frameworks/Sparkle.framework"
+
+echo "Building Finder Sync extension..."
+FINDER_PROJECT="macos/finder-extension/MDPreviewFinderExtension.xcodeproj"
+FINDER_DERIVED="target/finder-extension-derived"
+xcodebuild \
+  -project "$FINDER_PROJECT" \
+  -scheme MDPreviewFinderExtension \
+  -configuration Release \
+  -derivedDataPath "$FINDER_DERIVED" \
+  ARCHS="arm64 x86_64" \
+  ONLY_ACTIVE_ARCH=NO \
+  CODE_SIGNING_ALLOWED=NO \
+  MARKETING_VERSION="$APP_VERSION" \
+  CURRENT_PROJECT_VERSION="$APP_VERSION" \
+  build >/dev/null
+ditto \
+  "$FINDER_DERIVED/Build/Products/Release/MDPreviewFinderExtension.appex" \
+  "$APP_DIR/Contents/PlugIns/MDPreviewFinderExtension.appex"
 
 cat > "$APP_DIR/Contents/Info.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -64,6 +83,17 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
     <true/>
     <key>SUEnableInstallerLauncherService</key>
     <true/>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>MD Preview Finder Actions</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>mdpreview</string>
+            </array>
+        </dict>
+    </array>
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>
@@ -114,6 +144,11 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
 </dict>
 </plist>
 PLIST
+
+codesign --force --sign - \
+  --entitlements macos/finder-extension/Extension.entitlements \
+  "$APP_DIR/Contents/PlugIns/MDPreviewFinderExtension.appex"
+codesign --force --sign - "$APP_DIR"
 
 echo "Done! App bundle at: $APP_DIR"
 echo "Size: $(du -sh "$APP_DIR" | cut -f1)"

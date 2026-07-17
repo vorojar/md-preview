@@ -107,6 +107,19 @@ fi
 xcrun stapler validate "$SIGNED" >/dev/null || { echo "    stapler validate failed" >&2; exit 5; }
 spctl -a -t open --context context:primary-signature "$SIGNED" >/dev/null 2>&1 \
   || { echo "    spctl assess failed" >&2; exit 6; }
+VERIFY_MOUNT="$WORK/verify-mount"
+mkdir -p "$VERIFY_MOUNT"
+hdiutil attach "$SIGNED" -nobrowse -mountpoint "$VERIFY_MOUNT" >/dev/null
+VERIFY_APP="$VERIFY_MOUNT/MD Preview.app"
+VERIFY_EXTENSION="$VERIFY_APP/Contents/PlugIns/MDPreviewFinderExtension.appex"
+if ! codesign --verify --deep --strict --verbose=2 "$VERIFY_APP" >/dev/null 2>&1 \
+  || ! codesign -d --entitlements :- "$VERIFY_EXTENSION" 2>&1 \
+    | grep -q 'com.apple.security.app-sandbox'; then
+  hdiutil detach "$VERIFY_MOUNT" >/dev/null 2>&1 || true
+  echo "    Finder extension signature or sandbox entitlement missing" >&2
+  exit 7
+fi
+hdiutil detach "$VERIFY_MOUNT" >/dev/null
 
 echo "[4/6] uploading signed dmg to $TAG (replacing unsigned)..."
 cp "$SIGNED" "$WORK/$ASSET"

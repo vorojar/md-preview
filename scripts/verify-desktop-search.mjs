@@ -35,6 +35,10 @@ await page.setContent(`<!doctype html>
     </style>
   </head>
   <body>
+    <div class="tabbar">
+      <div id="tabs"></div>
+      <button id="tab-open"></button>
+    </div>
     <div class="toolbar">
       <button id="btn-open"></button>
       <button id="btn-search"></button>
