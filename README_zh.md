@@ -9,7 +9,7 @@
 [![App Store](https://img.shields.io/badge/App%20Store-Local%20Markdown%20Preview-blue?logo=appstore)](https://apps.apple.com/cn/app/local-markdown-preview/id6779451523)
 [![Binary size](https://img.shields.io/badge/binary-~5MB-green)](https://github.com/vorojar/md-preview/releases)
 
-> 多份 Markdown，一个轻量窗口。预览、快速改源码、重启后接着上次的标签继续，不必启动一整个 IDE。
+> 多份 Markdown，一个轻量窗口。直接新建、预览、编辑并自动保存，不必启动一整个 IDE。
 
 MD Preview 是用 **Rust** 和系统 **WebView** 写的本地优先 Markdown 预览与快速编辑工具，桌面端覆盖 macOS、Windows、Linux，手机端提供 iOS 和 Android 原生外壳，方便从文件管理器、微信、企业微信和系统分享面板打开 Markdown。它不打包 Chromium，不依赖 Electron，渲染资源全部离线内置。桌面端可以把多份本地文档放进同一组标签，重启后回到上次活动文档；macOS 上还能从 Finder 新建 Markdown 并立即开始编辑。
 
@@ -22,7 +22,7 @@ AI 编程工具现在会生成大量 Markdown：`README.md`、`plan.md`、任务
 - **打开快**：原生二进制、系统 WebView，不带一份浏览器运行时。
 - **本地渲染**：Markdown、代码高亮、数学公式、Mermaid 图表都在本机完成。
 - **文档放在一起**：在一个标签窗口里打开多份 Markdown 和文本，下次启动继续上次会话。
-- **编辑少绕路**：直接在应用里快速改源码；macOS 上从 Finder 新建 Markdown 后立刻进入编辑。
+- **编辑少绕路**：从标签栏或 Finder 新建 Markdown 后立即输入，停顿片刻就自动保存。
 - **跟随外部编辑**：用 Vim、VS Code、Cursor、Zed 或任何编辑器保存文件，预览自动刷新。
 - **阅读不打扰**：工具栏只在 hover 时出现，空白首页提供打开文件和最近文件，文档始终是主角。
 - **覆盖真实文档**：代码块、表格、任务列表、公式、图表、图片、链接、打印都能离线工作。
@@ -78,7 +78,7 @@ md-preview README.md plan.md task.md
 md-preview
 ```
 
-MD Preview 支持通过拖拽、打开对话框、最近文件或命令行打开 `.md` / `.txt` 文件。桌面端会用标签承载文档；重复打开同一路径时只激活已有标签。重启后恢复标签顺序和活动文档，后台文档正文仍留在磁盘，点击时才加载。相对路径图片会按 Markdown 文件所在目录解析，本地文档目录可以自然渲染。
+MD Preview 支持通过拖拽、打开对话框、最近文件或命令行打开 `.md` / `.txt` 文件。桌面端会用标签承载文档；重复打开同一路径时只激活已有标签。使用标签栏 `+` 或 `Cmd/Ctrl+N` 可在当前文档旁新建 Markdown，并立即进入源码编辑。重启后恢复标签顺序和活动文档，后台文档正文仍留在磁盘，点击时才加载。相对路径图片会按 Markdown 文件所在目录解析，本地文档目录可以自然渲染。
 
 如果标签对应的文件被移动或删除，标签不会静默消失。点击后可以重新定位文件，或者关闭标签。
 
@@ -98,13 +98,14 @@ iPhone 和 iPad 上，Local Markdown Preview 可以从“文件”和 iOS 分享
 | 会话恢复 | 重启后恢复标签顺序和活动文档，但不缓存后台文档正文。 |
 | 缺失文件 | 文件移动或删除后保留缺失标签，提供重新定位和关闭操作。 |
 | Finder 工作流 | macOS 上从 Finder 新建 Markdown，并立即在 MD Preview 里编辑。 |
+| 可靠自动保存 | 源码输入停顿片刻即保存；预览、切换标签、关闭标签/窗口或退出前强制写盘，保存失败时保留标签和编辑内容。 |
 | 启动首页 | 空白启动时显示打开文件和本机最近文件，没加载文档也有明确入口。 |
 | 手机端打开 | iOS 支持从“文件”和分享面板打开 Markdown；Android 支持从文件管理器、微信、企业微信和系统分享面板打开 Markdown。 |
 | 拖拽打开 | 把 Markdown 文件拖进窗口即可打开。 |
 | 命令行打开 | `md-preview path/to/file.md` 直接从 shell 打开。 |
 | 预览搜索 | `Cmd/Ctrl+F` 打开轻量搜索栏，在渲染后的文档内查找。 |
 | 实时刷新 | 外部编辑保存后，预览自动更新。 |
-| 源码编辑 | `Cmd/Ctrl+E` 切到源码模式快速改字，`Cmd/Ctrl+S` 保存。 |
+| 源码编辑 | `Cmd/Ctrl+E` 切到源码模式；编辑会自动保存，`Cmd/Ctrl+S` 可立即保存。 |
 | 原生打印 | `Cmd/Ctrl+P` 打开系统打印对话框，只打印预览内容。 |
 | 代码高亮 | highlight.js 离线内置，首屏之后再注入，不阻塞打开。 |
 | 数学公式 | KaTeX 按需渲染 `$...$`、`$$...$$`、`\(...\)`、`\[...\]`。 |
@@ -121,6 +122,7 @@ iPhone 和 iPad 上，Local Markdown Preview 可以从“文件”和 iOS 分享
 
 | 快捷键 | 作用 |
 |---|---|
+| `Cmd/Ctrl + N` | 新建 Markdown 并进入源码编辑 |
 | `Cmd/Ctrl + O` | 打开文件 |
 | `Cmd/Ctrl + F` | 在预览里搜索 |
 | `Cmd/Ctrl + E` | 切换预览 / 源码编辑 |

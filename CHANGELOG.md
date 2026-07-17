@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.0
+
+- Changed the tab-bar `+` and `Cmd/Ctrl+N` into a dedicated New Markdown flow that creates a `.md` file in the current document folder and opens it directly in source edit.
+- Added 700 ms debounced autosave in source edit mode, so quick edits persist without switching back to preview or pressing Save.
+- Forced pending edits to save before preview, tab activation, tab close, window close, and app quit, including protection against stale autosave acknowledgements.
+- Kept tabs open and editor contents intact when saving fails, with a visible error that explains the affected path.
+- Protected dirty editor contents from external file-change reloads and stopped time-only watcher suppression from hiding real external writes.
+- Verified the native macOS update menu, Sparkle configuration, signed appcast contract, and live GitHub desktop release selection.
+
 ## 1.2.0
 
 - Added a native desktop tab bar for opening multiple Markdown and text documents in one window, with per-tab dirty and missing-file states.

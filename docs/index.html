@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MD Preview — Multi-Document Markdown Preview and Quick Edit</title>
-<meta name="description" content="Open multiple Markdown files in lightweight tabs, restore your session, preview Mermaid and KaTeX offline, and make quick source edits without launching an IDE. Native builds for macOS, Windows, Linux, iOS, and Android.">
+<meta name="description" content="Create Markdown from the tab bar, edit multiple files in lightweight tabs, and rely on automatic save before switching, closing, or quitting. Native builds for macOS, Windows, Linux, iOS, and Android.">
 <meta name="keywords" content="markdown preview, markdown tabs, multi document markdown, markdown viewer, markdown editor, Finder markdown, session restore, ios markdown viewer, android markdown viewer, AI generated docs, Claude Code markdown, Codex markdown, Cursor markdown, Mermaid preview, KaTeX preview, lightweight markdown app, rust markdown, native markdown viewer, offline markdown, electron alternative, wry, pulldown-cmark">
 <meta name="author" content="vorojar">
 <meta name="robots" content="index, follow">
@@ -14,7 +14,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="MD Preview">
 <meta property="og:title" content="MD Preview — Multiple Markdown Files, One Lightweight Window">
-<meta property="og:description" content="Keep Markdown documents open in tabs, resume them after restart, and create a new Markdown file from Finder straight into source edit. Rust + system WebView, no Electron.">
+<meta property="og:description" content="Create Markdown from the tab bar, keep documents open across restarts, and edit with reliable automatic save. Rust + system WebView, no Electron.">
 <meta property="og:image" content="https://vorojar.github.io/md-preview/hero.jpg">
 <meta property="og:image:width" content="900">
 <meta property="og:image:height" content="732">
@@ -23,7 +23,7 @@
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="MD Preview — Multiple Markdown Files, One Lightweight Window">
-<meta name="twitter:description" content="Native Markdown tabs, session restore, quick source edit, and a Finder-to-editor workflow on macOS. Rust + system WebView, no Electron.">
+<meta name="twitter:description" content="Native Markdown tabs, instant New Markdown, session restore, and reliable automatic save. Rust + system WebView, no Electron.">
 <meta name="twitter:image" content="https://vorojar.github.io/md-preview/hero.jpg">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>#</text></svg>">
@@ -34,13 +34,13 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "MD Preview",
-  "description": "Native cross-platform Markdown preview app with multi-document tabs, session restore, quick source editing, Finder actions on macOS, offline Mermaid and KaTeX, search, live reload, dark mode, and native print. Built with Rust and the system WebView, with no Electron.",
+  "description": "Native cross-platform Markdown preview app with New Markdown, multi-document tabs, session restore, reliable automatic save, Finder actions on macOS, offline Mermaid and KaTeX, search, live reload, dark mode, and native print. Built with Rust and the system WebView, with no Electron.",
   "url": "https://vorojar.github.io/md-preview/",
   "downloadUrl": "https://github.com/vorojar/md-preview/releases",
   "installUrl": "https://apps.apple.com/cn/app/local-markdown-preview/id6779451523",
   "operatingSystem": "macOS, Windows, Linux, iOS, iPadOS, Android",
   "applicationCategory": "DeveloperApplication",
-  "softwareVersion": "1.2.0",
+  "softwareVersion": "1.3.0",
   "fileSize": "5.1MB",
   "license": "https://opensource.org/licenses/MIT",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -349,9 +349,9 @@ footer a { color: inherit; }
 
 <header class="hero">
   <div class="hero-icon" aria-hidden="true">#</div>
-  <div class="release-badge" data-en="New in v1.2 · Multi-document tabs + Finder workflow" data-zh="v1.2 新功能 · 多文档标签 + Finder 工作流"></div>
+  <div class="release-badge" data-en="New in v1.3 · New Markdown + reliable autosave" data-zh="v1.3 新功能 · 一键新建 + 可靠自动保存"></div>
   <h1>MD Preview</h1>
-  <p class="tagline" data-en="Keep multiple Markdown files open in one lightweight window. Tabs survive restarts, and on macOS a new Finder document opens straight into source edit." data-zh="在一个轻量窗口里同时打开多份 Markdown。标签重启后仍在；macOS 上从 Finder 新建文档后，直接进入源码编辑。"></p>
+  <p class="tagline" data-en="Create Markdown from the tab bar, keep multiple files open across restarts, and edit without worrying whether you clicked Preview before closing." data-zh="从标签栏直接新建 Markdown，多份文件重启后仍在；编辑后即使没点预览，关闭前也会可靠保存。"></p>
   <div class="cta">
     <a class="cta-primary" href="https://github.com/vorojar/md-preview/releases/latest" data-en="Download Desktop" data-zh="下载桌面版"></a>
     <a class="cta-secondary" href="https://apps.apple.com/cn/app/local-markdown-preview/id6779451523" data-en="Get iOS App" data-zh="获取 iOS 版"></a>
@@ -360,7 +360,7 @@ footer a { color: inherit; }
 </header>
 
 <section class="screenshot">
-  <img src="./hero.jpg" alt="MD Preview v1.2 showing multiple Markdown document tabs" loading="eager" width="900" height="732">
+  <img src="./hero.jpg" alt="MD Preview showing multiple Markdown tabs and rendered content" loading="eager" width="900" height="732">
 </section>
 
 <section class="stats">
@@ -388,7 +388,8 @@ footer a { color: inherit; }
   <ul class="workflow-list">
     <li data-en="Open several local Markdown and text files in one window; opening the same path simply activates its tab." data-zh="在一个窗口打开多份本地 Markdown 和文本文件；重复打开同一路径只会激活已有标签。"></li>
     <li data-en="Resume tab order and the active document across launches without caching document bodies." data-zh="重启后恢复标签顺序和活动文档，但不缓存文档正文。"></li>
-    <li data-en="Create Markdown from the macOS Finder menu and start typing immediately in MD Preview." data-zh="从 macOS Finder 菜单新建 Markdown，并立即在 MD Preview 里开始编辑。"></li>
+    <li data-en="Use the tab-bar + or Cmd/Ctrl+N to create Markdown beside the current document and start typing immediately." data-zh="使用标签栏 + 或 Cmd/Ctrl+N 在当前文档旁新建 Markdown，并立即开始输入。"></li>
+    <li data-en="Let edits autosave after a short pause, with a final save before preview, tab/window close, or quit." data-zh="输入停顿片刻即自动保存；预览、关闭标签/窗口或退出前还会强制保存。"></li>
     <li data-en="Preview Mermaid, KaTeX, code, tables, and alerts offline, then print or export a clean PDF." data-zh="离线预览 Mermaid、KaTeX、代码、表格和提示块，再打印或导出干净 PDF。"></li>
   </ul>
 </section>
@@ -416,8 +417,8 @@ footer a { color: inherit; }
   </div>
   <div class="feature">
     <div class="icon">&#128269;</div>
-    <h3 data-en="Live reload" data-zh="实时刷新"></h3>
-    <p data-en="Edit in MD Preview or another editor. Saved changes refresh the rendered document automatically." data-zh="可以直接在 MD Preview 编辑，也可以使用其他编辑器；保存后渲染结果自动刷新。"></p>
+    <h3 data-en="Reliable autosave" data-zh="可靠自动保存"></h3>
+    <p data-en="Edits save after a short pause and flush before switching, closing, or quitting. A failed save keeps the tab and source intact." data-zh="输入停顿片刻即保存，切换、关闭或退出前强制写盘；失败时标签和源码都不会丢。"></p>
   </div>
   <div class="feature">
     <div class="icon">&#128269;</div>

@@ -27,7 +27,15 @@ const DEFAULT_H: f64 = 700.0;
 static APP_DIRTY: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug)]
+struct SelfWriteRecord {
+    at: Instant,
+    path: PathBuf,
+    content: String,
+}
+
+#[derive(Debug)]
 enum UserEvent {
+    NewFile,
     OpenFile,
     OpenPaths(Vec<PathBuf>, bool),
     ActivateTab(u64),
@@ -35,7 +43,8 @@ enum UserEvent {
     CloseActiveTab,
     LocateTab(u64),
     FileChanged(PathBuf), // external change: refresh preview AND textarea
-    FileSaved(PathBuf),   // our own save: refresh preview only, leave textarea cursor alone
+    ExternalChangeResolved(bool),
+    FileSaved(PathBuf), // our own save: refresh preview only, leave textarea cursor alone
     SaveFailed(String),
     DirtyChanged(bool),
     ToggleEdit,
@@ -45,6 +54,7 @@ enum UserEvent {
     UpdateCheckResult(UpdateCheckResult),
     SetTheme(ThemeChoice),
     OpenUrl(&'static str),
+    Quit,
     RecentChanged,
     Ready, // first paint landed: inject hljs now; if bench mode, also exit
 }
@@ -146,6 +156,8 @@ struct Strings {
     close_tab: &'static str,
     btn_edit: &'static str,
     btn_preview: &'static str,
+    btn_new: &'static str,
+    new_filename: &'static str,
     btn_open: &'static str,
     btn_search: &'static str,
     btn_print: &'static str,
@@ -167,6 +179,8 @@ impl Strings {
                 close_tab: "关闭标签",
                 btn_edit: "编辑 (Cmd/Ctrl+E)",
                 btn_preview: "预览 (Cmd/Ctrl+E)",
+                btn_new: "新建 Markdown (Cmd/Ctrl+N)",
+                new_filename: "新建.md",
                 btn_open: "Open File (Cmd/Ctrl+O)",
                 btn_search: "搜索 (Cmd/Ctrl+F)",
                 btn_print: "打印 (Cmd/Ctrl+P)",
@@ -184,6 +198,8 @@ impl Strings {
                 close_tab: "Close Tab",
                 btn_edit: "Edit (Cmd/Ctrl+E)",
                 btn_preview: "Preview (Cmd/Ctrl+E)",
+                btn_new: "New Markdown (Cmd/Ctrl+N)",
+                new_filename: "Untitled.md",
                 btn_open: "Open File (Cmd/Ctrl+O)",
                 btn_search: "Find (Cmd/Ctrl+F)",
                 btn_print: "Print (Cmd/Ctrl+P)",
@@ -1286,7 +1302,7 @@ body.editing #btn-print {{ display: none; }}
   #preview .mdp-table-wrap {{ width: auto; margin: 1em 0; transform: none; overflow: visible; }}
 }}
 	</style></head><body class="{body_class}">
-	<div class="tabbar" id="tabbar"><div class="tabs" id="tabs"></div><button class="tab-open" id="tab-open" type="button" title="{btn_open}" aria-label="{btn_open}">+</button></div>
+	<div class="tabbar" id="tabbar"><div class="tabs" id="tabs"></div><button class="tab-open" id="tab-open" type="button" title="{btn_new}" aria-label="{btn_new}">+</button></div>
 	<div class="toolbar">
 	  <button id="btn-open" title="{btn_open}" aria-label="{btn_open}"></button>
 	  <button id="btn-search" title="{btn_search}" aria-label="{btn_search}"></button>
@@ -1332,6 +1348,9 @@ body.editing #btn-print {{ display: none; }}
 	  var ta = document.getElementById('editor');
 	  var dirty = false;
 	  var activeTabId = 0;
+	  var pendingAutosaveTimer = 0;
+	  var autosavePaused = false;
+	  var AUTOSAVE_DEBOUNCE_MS = 700;
 	  var composingFind = false;
 	  var pendingFindTimer = 0;
 	  var FIND_DEBOUNCE_MS = 300;
@@ -1357,11 +1376,27 @@ body.editing #btn-print {{ display: none; }}
     dirty = d;
     window.ipc.postMessage(d ? 'dirty:1' : 'dirty:0');
   }}
+	  function cancelPendingAutosave() {{
+	    if (!pendingAutosaveTimer) return;
+	    clearTimeout(pendingAutosaveTimer);
+	    pendingAutosaveTimer = 0;
+	  }}
 	  function save() {{
+	    cancelPendingAutosave();
+	    if (!dirty) return;
 	    window.ipc.postMessage('save:' + ta.value);
+	  }}
+	  function scheduleAutosave() {{
+	    cancelPendingAutosave();
+	    if (autosavePaused) return;
+	    pendingAutosaveTimer = setTimeout(function() {{
+	      pendingAutosaveTimer = 0;
+	      if (dirty) save();
+	    }}, AUTOSAVE_DEBOUNCE_MS);
 	  }}
 	  window.__mdPreviewSave = save;
 	  function requestTabAction(action, id) {{
+	    cancelPendingAutosave();
 	    var message = 'tab-action:' + action + ':' + id;
 	    if (dirty) message += '\n' + ta.value;
 	    window.ipc.postMessage(message);
@@ -1371,6 +1406,11 @@ body.editing #btn-print {{ display: none; }}
 	    window.ipc.postMessage('open');
 	  }}
 	  window.__mdPreviewOpenFile = openFile;
+	  function newFile() {{
+	    if (inEdit()) leaveEdit();
+	    window.ipc.postMessage('new-file');
+	  }}
+	  window.__mdPreviewNewFile = newFile;
 	  function showFind() {{
 	    if (document.body.classList.contains('empty')) return;
 	    if (inEdit()) return;
@@ -1546,7 +1586,7 @@ body.editing #btn-print {{ display: none; }}
   }};
 
 	  btnOpen.addEventListener('click', openFile);
-	  tabOpen.addEventListener('click', openFile);
+	  tabOpen.addEventListener('click', newFile);
 	  btnSearch.addEventListener('click', showFind);
 	  document.addEventListener('click', function(e) {{
 	    var closeTab = e.target && e.target.closest ? e.target.closest('[data-close-tab]') : null;
@@ -1604,7 +1644,7 @@ body.editing #btn-print {{ display: none; }}
     // WebView::print() calls the right native API on each platform.
     setTimeout(function(){{ window.ipc.postMessage('print'); }}, 0);
   }});
-  ta.addEventListener('input', function() {{ setDirty(true); autoResize(); }});
+	  ta.addEventListener('input', function() {{ setDirty(true); scheduleAutosave(); autoResize(); }});
   window.addEventListener('resize', function() {{ if (inEdit()) autoResize(); }});
 
   document.addEventListener('keydown', function(e) {{
@@ -1613,6 +1653,11 @@ body.editing #btn-print {{ display: none; }}
 	    e.preventDefault();
 	    requestTabAction('close', activeTabId);
 	  }}
+	  return;
+	}}
+	if ((e.metaKey || e.ctrlKey) && (e.key === 'n' || e.key === 'N')) {{
+	  e.preventDefault();
+	  newFile();
 	  return;
 	}}
     if ((e.metaKey || e.ctrlKey) && (e.key === 'r' || e.key === 'R')) {{
@@ -1672,7 +1717,22 @@ body.editing #btn-print {{ display: none; }}
     if (baseHref) base.setAttribute('href', baseHref);
     else base.removeAttribute('href');
   }};
-	window.__markSaved = function() {{ setDirty(false); }};
+	window.__markSaved = function(savedRaw) {{
+	  if (typeof savedRaw === 'string' && ta.value !== savedRaw) {{
+	    window.ipc.postMessage('dirty:1');
+	    return;
+	  }}
+	  autosavePaused = false;
+	  setDirty(false);
+	}};
+	window.__mdPreviewPauseAutosave = function() {{
+	  cancelPendingAutosave();
+	  autosavePaused = true;
+	}};
+	window.__mdPreviewResolveExternalChange = function() {{
+	  cancelPendingAutosave();
+	  window.ipc.postMessage('external-change:' + (dirty ? 'dirty' : 'clean'));
+	}};
 	window.__setTabs = function(tabs) {{
 	  tabs = Array.isArray(tabs) ? tabs : [];
 	  tabsEl.textContent = '';
@@ -1717,9 +1777,10 @@ body.editing #btn-print {{ display: none; }}
 	    document.body.classList.remove('missing');
 	    hideFind();
 	    window.__setBaseHref(baseHref);
-    window.__setPreview(previewHtml, needsMath, needsMermaid);
+	    window.__setPreview(previewHtml, needsMath, needsMermaid);
     if (!inEdit() || !dirty) {{
-      ta.value = rawMd;
+	      autosavePaused = false;
+	      ta.value = rawMd;
       setDirty(false);
       if (inEdit()) autoResize();
     }}
@@ -1727,6 +1788,12 @@ body.editing #btn-print {{ display: none; }}
 	  window.__setEmptyPreview = function(previewHtml) {{
 	    document.body.classList.add('empty');
 	    document.body.classList.remove('missing');
+	    document.body.classList.remove('editing');
+	    btnToggle.innerHTML = ICON_EDIT;
+	    btnToggle.title = L_EDIT;
+	    btnToggle.setAttribute('aria-label', L_EDIT);
+	    cancelPendingAutosave();
+	    autosavePaused = false;
 	    hideFind();
 	    window.__setBaseHref('');
 	    document.getElementById('preview').innerHTML = previewHtml;
@@ -1739,6 +1806,10 @@ body.editing #btn-print {{ display: none; }}
 	    document.body.classList.add('missing');
 	    document.body.classList.remove('editing');
 	    btnToggle.innerHTML = ICON_EDIT;
+	    btnToggle.title = L_EDIT;
+	    btnToggle.setAttribute('aria-label', L_EDIT);
+	    cancelPendingAutosave();
+	    autosavePaused = false;
 	    hideFind();
 	    window.__setBaseHref('');
 	    document.getElementById('preview').innerHTML = previewHtml;
@@ -1781,6 +1852,7 @@ window.__mdPreviewInstallUpdateCheck({{
         preview_html = preview_html,
         raw_md_escaped = html_escape_ta(raw_md),
         btn_open = s.btn_open,
+        btn_new = s.btn_new,
         btn_search = s.btn_search,
         btn_edit = s.btn_edit,
         btn_preview = s.btn_preview,
@@ -2232,6 +2304,66 @@ mod tests {
     }
 
     #[test]
+    fn page_separates_new_file_from_open_and_debounces_autosave() {
+        let strings = Strings::for_lang(Lang::En);
+        let page = build_page(
+            &md_to_html("# Hello"),
+            "# Hello",
+            None,
+            EnhanceFlags::default(),
+            &strings,
+            false,
+            true,
+        );
+
+        assert!(page.contains("window.ipc.postMessage('new-file')"));
+        assert!(page.contains("tabOpen.addEventListener('click', newFile)"));
+        assert!(!page.contains("tabOpen.addEventListener('click', openFile)"));
+        assert!(page.contains("AUTOSAVE_DEBOUNCE_MS = 700"));
+        assert!(page.contains("pendingAutosaveTimer = setTimeout"));
+        assert!(page.contains("window.__markSaved = function(savedRaw)"));
+        assert!(page.contains("window.__mdPreviewResolveExternalChange"));
+        assert!(page.contains("'external-change:' + (dirty ? 'dirty' : 'clean')"));
+        assert!(page.contains("(e.key === 'n' || e.key === 'N')"));
+    }
+
+    #[test]
+    fn closing_the_last_editing_tab_restores_the_empty_preview() {
+        let strings = Strings::for_lang(Lang::En);
+        let page = build_page(
+            &md_to_html("# Hello"),
+            "# Hello",
+            None,
+            EnhanceFlags::default(),
+            &strings,
+            false,
+            true,
+        );
+        let empty_start = page.find("window.__setEmptyPreview = function").unwrap();
+        let missing_start = page.find("window.__setMissing = function").unwrap();
+        let empty_handler = &page[empty_start..missing_start];
+
+        assert!(empty_handler.contains("document.body.classList.remove('editing')"));
+        assert!(empty_handler.contains("btnToggle.innerHTML = ICON_EDIT"));
+    }
+
+    #[test]
+    fn new_markdown_path_keeps_markdown_extensions_and_replaces_other_extensions() {
+        assert_eq!(
+            normalize_new_markdown_path(PathBuf::from("/tmp/plan")),
+            PathBuf::from("/tmp/plan.md")
+        );
+        assert_eq!(
+            normalize_new_markdown_path(PathBuf::from("/tmp/plan.markdown")),
+            PathBuf::from("/tmp/plan.markdown")
+        );
+        assert_eq!(
+            normalize_new_markdown_path(PathBuf::from("/tmp/plan.txt")),
+            PathBuf::from("/tmp/plan.md")
+        );
+    }
+
+    #[test]
     fn page_expands_multi_column_tables() {
         let strings = Strings::for_lang(Lang::En);
         let page = build_page(
@@ -2335,6 +2467,31 @@ mod tests {
         .add_path(PathBuf::from("/tmp/other.md"));
 
         assert!(!event_should_reload_file(&ev, &target));
+    }
+
+    #[test]
+    fn self_write_suppression_checks_disk_content_not_only_time() {
+        let dir = temp_test_dir("self-write-suppression");
+        let path = dir.join("note.md");
+        fs::write(&path, "saved by app").unwrap();
+        let record = SelfWriteRecord {
+            at: Instant::now(),
+            path: path.clone(),
+            content: "saved by app".to_string(),
+        };
+
+        assert!(self_write_still_matches_disk(Some(&record), &path));
+
+        fs::write(&path, "external edit").unwrap();
+        assert!(!self_write_still_matches_disk(Some(&record), &path));
+    }
+
+    #[test]
+    fn external_change_protection_uses_dirty_state_from_either_side() {
+        assert!(!should_protect_external_change(false, false));
+        assert!(should_protect_external_change(true, false));
+        assert!(should_protect_external_change(false, true));
+        assert!(should_protect_external_change(true, true));
     }
 
     #[test]
@@ -2504,6 +2661,10 @@ fn macos_menu_controller_class() -> &'static objc2::runtime::AnyClass {
         send_macos_menu_event(UserEvent::OpenFile);
     }
 
+    extern "C" fn new_file(_: &AnyObject, _: Sel, _: &AnyObject) {
+        send_macos_menu_event(UserEvent::NewFile);
+    }
+
     extern "C" fn close_tab(_: &AnyObject, _: Sel, _: &AnyObject) {
         send_macos_menu_event(UserEvent::CloseActiveTab);
     }
@@ -2522,6 +2683,10 @@ fn macos_menu_controller_class() -> &'static objc2::runtime::AnyClass {
 
     extern "C" fn check_updates(_: &AnyObject, _: Sel, _: &AnyObject) {
         send_macos_menu_event(UserEvent::CheckUpdates);
+    }
+
+    extern "C" fn quit(_: &AnyObject, _: Sel, _: &AnyObject) {
+        send_macos_menu_event(UserEvent::Quit);
     }
 
     extern "C" fn open_website(_: &AnyObject, _: Sel, _: &AnyObject) {
@@ -2606,7 +2771,7 @@ fn macos_menu_controller_class() -> &'static objc2::runtime::AnyClass {
         alert.setAlertStyle(NSAlertStyle::Informational);
         alert.setMessageText(&NSString::from_str("MD Preview"));
         alert.setInformativeText(&NSString::from_str(&format!(
-            "Version {}\n\nOpen multiple local Markdown files in lightweight tabs, resume them across launches, and make quick source edits without opening an IDE.",
+            "Version {}\n\nCreate Markdown from the tab bar, edit several local documents in lightweight tabs, and rely on automatic save when switching, closing, or quitting.",
             env!("CARGO_PKG_VERSION")
         )));
 
@@ -2657,6 +2822,7 @@ fn macos_menu_controller_class() -> &'static objc2::runtime::AnyClass {
                 sel!(mdPreviewOpenFile:),
                 open_file as extern "C" fn(_, _, _),
             );
+            builder.add_method(sel!(mdPreviewNewFile:), new_file as extern "C" fn(_, _, _));
             builder.add_method(
                 sel!(mdPreviewCloseTab:),
                 close_tab as extern "C" fn(_, _, _),
@@ -2674,6 +2840,7 @@ fn macos_menu_controller_class() -> &'static objc2::runtime::AnyClass {
                 sel!(mdPreviewCheckUpdates:),
                 check_updates as extern "C" fn(_, _, _),
             );
+            builder.add_method(sel!(mdPreviewQuit:), quit as extern "C" fn(_, _, _));
             builder.add_method(
                 sel!(mdPreviewOpenWebsite:),
                 open_website as extern "C" fn(_, _, _),
@@ -2799,11 +2966,12 @@ fn install_macos_menu(proxy: EventLoopProxy<UserEvent>, theme: ThemeChoice) {
         mtm,
     ));
     app_menu.addItem(&NSMenuItem::separatorItem(mtm));
-    app_menu.addItem(&item(
+    app_menu.addItem(&command_item(
         "Quit MD Preview",
-        Some(sel!(terminate:)),
+        sel!(mdPreviewQuit:),
         "q",
         NSEventModifierFlags::Command,
+        controller,
         mtm,
     ));
     let app_menu_item = item("MD Preview", None, "", NSEventModifierFlags::empty(), mtm);
@@ -2812,6 +2980,14 @@ fn install_macos_menu(proxy: EventLoopProxy<UserEvent>, theme: ThemeChoice) {
 
     let file_menu = menu("File", mtm);
     file_menu.setAutoenablesItems(false);
+    file_menu.addItem(&command_item(
+        "New Markdown...",
+        sel!(mdPreviewNewFile:),
+        "n",
+        NSEventModifierFlags::Command,
+        controller,
+        mtm,
+    ));
     file_menu.addItem(&command_item(
         "Open...",
         sel!(mdPreviewOpenFile:),
@@ -3348,7 +3524,7 @@ fn is_supported_document(path: &Path) -> bool {
 fn install_file_watcher(
     holder: &Arc<Mutex<Option<notify::RecommendedWatcher>>>,
     proxy: &EventLoopProxy<UserEvent>,
-    last_self_write: &Arc<Mutex<Option<Instant>>>,
+    last_self_write: &Arc<Mutex<Option<SelfWriteRecord>>>,
     path: Option<PathBuf>,
 ) {
     let mut current = holder.lock().unwrap();
@@ -3363,12 +3539,8 @@ fn install_file_watcher(
     if let Ok(mut watcher) = notify::recommended_watcher(move |result: Result<Event, _>| {
         if let Ok(event) = result {
             if event_should_reload_file(&event, &callback_path) {
-                let suppress = last_self_write
-                    .lock()
-                    .unwrap()
-                    .map(|time| time.elapsed() < Duration::from_millis(500))
-                    .unwrap_or(false);
-                if !suppress {
+                let last_self_write = last_self_write.lock().unwrap();
+                if !self_write_still_matches_disk(last_self_write.as_ref(), &callback_path) {
                     let _ = proxy.send_event(UserEvent::FileChanged(callback_path.clone()));
                 }
             }
@@ -3379,6 +3551,21 @@ fn install_file_watcher(
             *current = Some(watcher);
         }
     }
+}
+
+fn self_write_still_matches_disk(record: Option<&SelfWriteRecord>, path: &Path) -> bool {
+    let Some(record) = record else {
+        return false;
+    };
+    record.path == path
+        && record.at.elapsed() < Duration::from_millis(500)
+        && fs::read(path)
+            .map(|content| content == record.content.as_bytes())
+            .unwrap_or(false)
+}
+
+fn should_protect_external_change(webview_dirty: bool, session_dirty: bool) -> bool {
+    webview_dirty || session_dirty
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -3431,6 +3618,23 @@ fn create_finder_file(folder: &Path, kind: &str) -> std::io::Result<PathBuf> {
     }
     fs::write(&path, contents)?;
     Ok(path)
+}
+
+fn normalize_new_markdown_path(mut path: PathBuf) -> PathBuf {
+    let is_markdown = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| {
+            matches!(
+                extension.to_ascii_lowercase().as_str(),
+                "md" | "markdown" | "mdown" | "mkd"
+            )
+        })
+        .unwrap_or(false);
+    if !is_markdown {
+        path.set_extension("md");
+    }
+    path
 }
 
 fn open_terminal(folder: &Path) -> bool {
@@ -3763,7 +3967,7 @@ fn main() {
     persist_session(&initial_session);
     let document_session = Arc::new(Mutex::new(initial_session));
     let enhance_flags: Arc<Mutex<EnhanceFlags>> = Arc::new(Mutex::new(initial_flags));
-    let last_self_write: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
+    let last_self_write: Arc<Mutex<Option<SelfWriteRecord>>> = Arc::new(Mutex::new(None));
     let session_for_ipc = Arc::clone(&document_session);
     let recent_files_for_ipc = Arc::clone(&recent_files);
     let last_self_write_for_ipc = Arc::clone(&last_self_write);
@@ -3802,7 +4006,9 @@ fn main() {
         })
         .with_ipc_handler(move |msg| {
             let body = msg.body();
-            if body == "open" {
+            if body == "new-file" {
+                let _ = proxy_for_ipc.send_event(UserEvent::NewFile);
+            } else if body == "open" {
                 let _ = proxy_for_ipc.send_event(UserEvent::OpenFile);
             } else if let Some(index) = body.strip_prefix("open-recent:") {
                 if let Ok(index) = index.parse::<usize>() {
@@ -3836,7 +4042,11 @@ fn main() {
                     let Some(path) = path else {
                         return;
                     };
-                    *last_self_write_for_ipc.lock().unwrap() = Some(Instant::now());
+                    *last_self_write_for_ipc.lock().unwrap() = Some(SelfWriteRecord {
+                        at: Instant::now(),
+                        path: path.clone(),
+                        content: content.to_string(),
+                    });
                     match fs::write(&path, content) {
                         Ok(()) => {
                             let _ = proxy_for_ipc.send_event(UserEvent::FileSaved(path));
@@ -3867,6 +4077,10 @@ fn main() {
                 let _ = proxy_for_ipc.send_event(UserEvent::DirtyChanged(true));
             } else if body == "dirty:0" {
                 let _ = proxy_for_ipc.send_event(UserEvent::DirtyChanged(false));
+            } else if body == "external-change:dirty" {
+                let _ = proxy_for_ipc.send_event(UserEvent::ExternalChangeResolved(true));
+            } else if body == "external-change:clean" {
+                let _ = proxy_for_ipc.send_event(UserEvent::ExternalChangeResolved(false));
             } else if body == "print" {
                 let _ = proxy_for_ipc.send_event(UserEvent::Print);
             } else if body == "ready" {
@@ -3937,7 +4151,11 @@ fn main() {
                     .active()
                     .map(|tab| tab.path.clone());
                 if let Some(path) = path {
-                    *last_self_write_for_ipc.lock().unwrap() = Some(Instant::now());
+                    *last_self_write_for_ipc.lock().unwrap() = Some(SelfWriteRecord {
+                        at: Instant::now(),
+                        path: path.clone(),
+                        content: content.to_string(),
+                    });
                     match fs::write(&path, content) {
                         Ok(()) => {
                             let _ = proxy_for_ipc.send_event(UserEvent::FileSaved(path));
@@ -4024,11 +4242,49 @@ fn main() {
 
     let mut loaded_enhancers = EnhanceFlags::default();
     let mut pending_window_close = false;
+    let mut warned_external_change: Option<PathBuf> = None;
+    let mut pending_external_change: Option<PathBuf> = None;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
         match event {
+            TaoEvent::UserEvent(UserEvent::NewFile) => {
+                if session_for_event
+                    .lock()
+                    .unwrap()
+                    .active()
+                    .map(|tab| tab.dirty)
+                    .unwrap_or(false)
+                {
+                    let _ = webview.evaluate_script(
+                        "if(window.__mdPreviewNewFile)window.__mdPreviewNewFile();",
+                    );
+                    return;
+                }
+                let current_dir = session_for_event
+                    .lock()
+                    .unwrap()
+                    .active()
+                    .and_then(|tab| tab.path.parent().map(Path::to_path_buf));
+                let mut dialog = rfd::FileDialog::new()
+                    .add_filter("Markdown", &["md", "markdown", "mdown", "mkd"])
+                    .set_file_name(strings.new_filename);
+                if let Some(current_dir) = current_dir {
+                    dialog = dialog.set_directory(current_dir);
+                }
+                if let Some(path) = dialog.save_file() {
+                    let path = normalize_new_markdown_path(path);
+                    match fs::write(&path, "") {
+                        Ok(()) => {
+                            let _ = proxy.send_event(UserEvent::OpenPaths(vec![path], true));
+                        }
+                        Err(error) => {
+                            show_warning_dialog("Could Not Create File", &error.to_string());
+                        }
+                    }
+                }
+            }
             TaoEvent::UserEvent(UserEvent::OpenFile) => {
                 if session_for_event
                     .lock()
@@ -4156,8 +4412,43 @@ fn main() {
                 }
             }
             TaoEvent::UserEvent(UserEvent::FileChanged(path)) => {
+                if session_for_event
+                    .lock()
+                    .unwrap()
+                    .active()
+                    .map(|tab| tab.path.as_path())
+                    == Some(path.as_path())
+                {
+                    pending_external_change = Some(path);
+                    let _ = webview.evaluate_script(
+                        "if(window.__mdPreviewResolveExternalChange)window.__mdPreviewResolveExternalChange();",
+                    );
+                }
+            }
+            TaoEvent::UserEvent(UserEvent::ExternalChangeResolved(webview_dirty)) => {
+                let Some(path) = pending_external_change.take() else {
+                    return;
+                };
                 let mut session = session_for_event.lock().unwrap();
                 if session.active().map(|tab| tab.path.as_path()) == Some(path.as_path()) {
+                    let session_dirty = session.active().map(|tab| tab.dirty).unwrap_or(false);
+                    if should_protect_external_change(webview_dirty, session_dirty) {
+                        if let Some(tab) = session.active_mut() {
+                            tab.dirty = true;
+                        }
+                        APP_DIRTY.store(true, Ordering::SeqCst);
+                        let _ = webview.evaluate_script(
+                            "if(window.__mdPreviewPauseAutosave)window.__mdPreviewPauseAutosave();",
+                        );
+                        if warned_external_change.as_ref() != Some(&path) {
+                            show_warning_dialog(
+                                "File Changed on Disk",
+                                "Automatic saving is paused and your edits are still in the editor. Press Cmd/Ctrl+S to replace the disk version, or reopen the file to keep the external version.",
+                            );
+                            warned_external_change = Some(path);
+                        }
+                        return;
+                    }
                     render_active_document(
                         &webview,
                         &window,
@@ -4171,6 +4462,9 @@ fn main() {
                 }
             }
             TaoEvent::UserEvent(UserEvent::FileSaved(path)) => {
+                if warned_external_change.as_ref() == Some(&path) {
+                    warned_external_change = None;
+                }
                 let mut session = session_for_event.lock().unwrap();
                 let active_matches = session.active().map(|tab| tab.path.as_path()) == Some(path.as_path());
                 if let Some(tab) = session.tabs.iter_mut().find(|tab| tab.path == path) {
@@ -4184,10 +4478,11 @@ fn main() {
                         let flags = enhance_flags_for(&raw);
                         *enhance_flags.lock().unwrap() = flags;
                         let _ = webview.evaluate_script(&format!(
-                            "if(window.__setPreview)window.__setPreview('{}', {}, {});if(window.__markSaved)window.__markSaved();",
+                            "if(window.__setPreview)window.__setPreview('{}', {}, {});if(window.__markSaved)window.__markSaved('{}');",
                             escape_js(&html),
                             flags.math,
-                            flags.mermaid
+                            flags.mermaid,
+                            escape_js(&raw)
                         ));
                         for script in build_enhancer_bootstrap(flags, loaded_enhancers) {
                             let _ = webview.evaluate_script(&script);
@@ -4276,6 +4571,18 @@ fn main() {
                     );
                 }
             },
+            TaoEvent::UserEvent(UserEvent::Quit) => {
+                if APP_DIRTY.load(Ordering::SeqCst) && !pending_window_close {
+                    pending_window_close = true;
+                    let _ = webview.evaluate_script(
+                        "if(window.__mdPreviewSave)window.__mdPreviewSave();",
+                    );
+                } else if !pending_window_close {
+                    save_window_geom(&window);
+                    persist_session(&session_for_event.lock().unwrap());
+                    *control_flow = ControlFlow::Exit;
+                }
+            }
             TaoEvent::UserEvent(UserEvent::SetTheme(choice)) => {
                 save_theme_choice(choice);
                 window.set_theme(choice.tao_theme());

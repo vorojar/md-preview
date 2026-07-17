@@ -93,12 +93,15 @@ if '"w",\n        NSEventModifierFlags::Command' not in src:
     raise SystemExit("macOS Close Tab must keep Cmd+W")
 if "window.__setMissing" not in src or "data-locate-tab" not in src:
     raise SystemExit("missing session files must keep their tab and offer relocation")
+for marker in ("new-file", "AUTOSAVE_DEBOUNCE_MS = 700", "window.__mdPreviewResolveExternalChange", "UserEvent::Quit"):
+    if marker not in src:
+        raise SystemExit(f"desktop New Markdown/autosave contract is missing: {marker}")
 PY
   ran=1
 fi
 
 if [ -f docs/index.html ] && [ -f README.md ] && [ -f README_zh.md ]; then
-  echo "[agent-verify] v1.2 product story"
+  echo "[agent-verify] v1.3 product story"
   python3 - <<'PY'
 from pathlib import Path
 import tomllib
@@ -120,7 +123,12 @@ for marker in ("Desktop tabs", "Session restore", "Finder workflow"):
 for marker in ("桌面标签", "会话恢复", "Finder 工作流"):
     if marker not in readme_zh:
         raise SystemExit(f"README_zh.md is missing v1.2 product marker: {marker}")
-if "What's New" not in src or "resume them across launches" not in src:
+for marker in ("New in v1.3", "Reliable autosave"):
+    if marker not in site:
+        raise SystemExit(f"website is missing v1.3 product marker: {marker}")
+if "Reliable autosave" not in readme or "可靠自动保存" not in readme_zh:
+    raise SystemExit("README files must describe v1.3 reliable autosave")
+if "What's New" not in src or "rely on automatic save" not in src:
     raise SystemExit("macOS About must keep the current product positioning and What's New entry")
 PY
   ran=1

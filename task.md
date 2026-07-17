@@ -1,4 +1,58 @@
-# 当前任务：v1.2.0 官网、README、About 与社区补发
+# 当前任务：新建 Markdown、可靠自动保存与 v1.3.0 发布
+
+## 目标
+
+- 标签栏 `+` 不再重复“打开文件”，改为新建 Markdown；选择保存位置后创建新标签并直接进入编辑。
+- 编辑内容停止输入后自动保存；预览、切换标签、关闭标签、关闭窗口和退出应用前都强制刷新待保存内容。
+- 保存失败时不关闭、不切换、不丢编辑内容，并给出明确错误。
+- 检查应用内 GitHub Release 查询、平台资产选择、Sparkle appcast 与签名更新入口，确保 v1.3.0 发布后可被旧版本发现。
+- 完成单测、完整验证、真实 macOS UI、签名、公证、Gatekeeper、Release assets 与应用内更新闭环后发布 v1.3.0。
+
+## 非目标
+
+- 不实现内存态“未命名文档”、草稿云同步、富文本编辑或文件重命名。
+- 不改变 Finder 右键 Text / JSON / HTML 的行为，也不改移动端单文档预览流程。
+- 不提交 App Store Review、推广资料、AGENTS.md 及其他既有未提交内容。
+
+## 验收场景
+
+- [x] `+` 与 `Cmd/Ctrl+N` 打开新建 Markdown 保存面板；默认目录跟随当前文档，确认后创建 `.md` 标签并聚焦编辑器；取消时不创建文件或标签。
+- [x] 文件夹按钮与 `Cmd/Ctrl+O` 仍只打开已有文件，和 `+` 语义不重复。
+- [x] 输入停止约 700ms 后内容自动落盘，标签 dirty 状态恢复为已保存；`Cmd/Ctrl+S` 仍立即保存。
+- [x] 未点击“预览”时，切换标签、标签 `×`、`Cmd/Ctrl+W`、窗口关闭与 macOS `Cmd+Q` 都保存成功；重开文件内容存在。
+- [x] 保存失败会阻止切换或关闭，编辑器内容和 dirty 状态保留，用户可修复后重试。
+- [x] 外部文件变化不会被待保存编辑静默覆盖；自写 watcher 事件不会破坏光标或正文。
+- [x] GitHub Release 查询忽略 mobile、draft 与 prerelease，能选择正确平台资产；最新版显示“已是最新”，新版本走受信 URL 与原生更新入口。
+- [x] `cargo test`、`cargo check`、`./scripts/verify.sh` 与真实 macOS UI 全部通过；三平台 CI 等待 PR。
+- [ ] macOS DMG 及内部 app/appex 完成 Developer ID 签名、公证、staple、Gatekeeper 与 Sparkle appcast 验证；Release 正文来自 CHANGELOG。
+
+## 最小验证命令
+
+```bash
+cargo test
+cargo check
+./scripts/verify.sh
+./bundle.sh
+codesign --verify --deep --strict --verbose=2 "target/MD Preview.app"
+```
+
+## 风险与假设
+
+- MD Preview 当前所有标签都是文件背书；新建流程使用保存面板先确定路径，避免引入无法恢复的内存草稿。
+- 自动保存会增加写盘频率，必须去抖并继续抑制自写 watcher；外部修改与本地 dirty 冲突时以不覆盖用户编辑为优先。
+- 正常退出保存需要覆盖 macOS `Cmd+Q` 真实路径，不能只依据窗口关闭代码推断。
+
+## 当前验证记录
+
+- TDD：新建扩展名、关闭最后编辑标签、外部变化决策与自写事件内容核对均经历失败测试后修复，当前相关测试已通过。
+- 真实 UI：`+`/`Cmd+N` 新建并进入编辑、取消不建文件、700ms 自动保存、`Cmd+W`、红色窗口关闭与 `Cmd+Q` 写盘均通过。
+- 失败恢复：只读文件显示 `Permission denied`，阻止关闭并保留内容；恢复权限后 `Cmd+S` 写盘通过。
+- 更新检查：`verify-sparkle-update.sh` 通过；线上最新桌面版为 `v1.2.0`，平台资产与 `appcast.xml` 完整；应用菜单显示 `MD Preview Is Up to Date / 1.2.0`。
+- 完整验证：`scripts/verify.sh` 通过，包含 33 个 Rust 测试、桌面搜索/锚点、Sparkle、Windows updater、iOS build、Android debug/release、移动渲染与 release readiness。
+
+---
+
+# 已完成任务：v1.2.0 官网、README、About 与社区补发
 
 ## 补发目标
 
