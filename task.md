@@ -23,8 +23,8 @@
 - [x] 保存失败会阻止切换或关闭，编辑器内容和 dirty 状态保留，用户可修复后重试。
 - [x] 外部文件变化不会被待保存编辑静默覆盖；自写 watcher 事件不会破坏光标或正文。
 - [x] GitHub Release 查询忽略 mobile、draft 与 prerelease，能选择正确平台资产；最新版显示“已是最新”，新版本走受信 URL 与原生更新入口。
-- [x] `cargo test`、`cargo check`、`./scripts/verify.sh` 与真实 macOS UI 全部通过；三平台 CI 等待 PR。
-- [ ] macOS DMG 及内部 app/appex 完成 Developer ID 签名、公证、staple、Gatekeeper 与 Sparkle appcast 验证；Release 正文来自 CHANGELOG。
+- [x] `cargo test`、`cargo check`、`./scripts/verify.sh`、三平台 CI 与真实 macOS UI 全部通过。
+- [x] macOS DMG 及内部 app/appex 完成 Developer ID 签名、公证、staple、Gatekeeper 与 Sparkle appcast 验证；Release 正文来自 CHANGELOG。
 
 ## 最小验证命令
 
@@ -49,6 +49,11 @@ codesign --verify --deep --strict --verbose=2 "target/MD Preview.app"
 - 失败恢复：只读文件显示 `Permission denied`，阻止关闭并保留内容；恢复权限后 `Cmd+S` 写盘通过。
 - 更新检查：`verify-sparkle-update.sh` 通过；线上最新桌面版为 `v1.2.0`，平台资产与 `appcast.xml` 完整；应用菜单显示 `MD Preview Is Up to Date / 1.2.0`。
 - 完整验证：`scripts/verify.sh` 通过，包含 33 个 Rust 测试、桌面搜索/锚点、Sparkle、Windows updater、iOS build、Android debug/release、移动渲染与 release readiness。
+- PR 与 CI：PR #36 已合并；Linux、macOS、Windows 三个平台构建全部通过。
+- 正式发布：`v1.3.0` Release 已公开，四个平台资产齐全；DMG 与内部 app 完成 Developer ID 签名、两次 Apple 公证和 staple，Gatekeeper 为 `Notarized Developer ID`。
+- 更新闭环：线上 `appcast.xml` 指向 `1.3.0` 且包含 EdDSA 签名；保留的 `1.2.0` QA 包显示 `Update: v1.3.0`，手动检查弹出 `Update Available`。
+- 产品入口：官网、README、About、CHANGELOG 与结构化版本均已更新到 `1.3.0`；线上官网已返回 `New in v1.3` 与 `Reliable autosave`。
+- Issues：open issues #33（相对文档链接）、#29（页面缩放）、#19（Homebrew Cask）已有清晰范围或既有回复，不属于本次发布阻塞，无需重复回复。
 
 ---
 
