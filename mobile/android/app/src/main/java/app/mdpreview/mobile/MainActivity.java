@@ -46,6 +46,7 @@ public final class MainActivity extends Activity {
     private static final int OPEN_DOCUMENT_REQUEST = 7;
     private static final String RECENT_PREFS = "recent";
     private static final String RECENT_FILES = "files";
+    private static final String READING_POSITION_PREFS = "reading_positions";
     private static final String[] MARKDOWN_MIME_TYPES = new String[] {
         "text/markdown",
         "text/x-markdown",
@@ -90,6 +91,12 @@ public final class MainActivity extends Activity {
         if (uri != null) {
             openUri(uri);
         }
+    }
+
+    @Override
+    protected void onPause() {
+        evaluate("window.MDPreview && window.MDPreview.flushReadingPosition();");
+        super.onPause();
     }
 
     @Override
@@ -191,11 +198,13 @@ public final class MainActivity extends Activity {
             byte[] bytes = readBytes(uri);
             String markdown = decodeMarkdown(bytes);
             String name = displayName(uri);
+            String documentKey = documentKey(uri);
             JSONObject payload = new JSONObject();
             payload.put("markdown", markdown);
             payload.put("name", name);
             payload.put("baseHref", "file".equals(uri.getScheme()) ? baseHref(uri) : "");
-            saveRecent(name, bytes);
+            addReadingPosition(payload, documentKey);
+            saveRecent(name, bytes, documentKey);
             evaluate("window.MDPreview && window.MDPreview.render(" + payload + ");");
         } catch (IOException | RuntimeException | JSONException e) {
             if (fromRecent) {
@@ -426,6 +435,24 @@ public final class MainActivity extends Activity {
         return getSharedPreferences(RECENT_PREFS, MODE_PRIVATE);
     }
 
+    private SharedPreferences readingPositionPrefs() {
+        return getSharedPreferences(READING_POSITION_PREFS, MODE_PRIVATE);
+    }
+
+    private String documentKey(Uri uri) {
+        return "uri:" + uri.normalizeScheme();
+    }
+
+    private String recentDocumentKey(JSONObject item, String id) {
+        String documentKey = item.optString("documentKey");
+        return documentKey.isEmpty() ? "recent:" + id : documentKey;
+    }
+
+    private void addReadingPosition(JSONObject payload, String documentKey) throws JSONException {
+        payload.put("documentKey", documentKey);
+        payload.put("readingProgress", readingPositionPrefs().getFloat(documentKey, 0.0f));
+    }
+
     private JSONArray recentFiles() {
         String raw = recentPrefs().getString(RECENT_FILES, "[]");
         try {
@@ -443,7 +470,7 @@ public final class MainActivity extends Activity {
         return directory;
     }
 
-    private void saveRecent(String name, byte[] bytes) {
+    private void saveRecent(String name, byte[] bytes, String documentKey) {
         String displayName = cleanRecentName(name);
         String fileName = UUID.randomUUID() + "-" + safeRecentFileName(displayName);
         File file = new File(recentDirectory(), fileName);
@@ -459,6 +486,7 @@ public final class MainActivity extends Activity {
             JSONObject current = new JSONObject();
             current.put("id", fileName);
             current.put("name", displayName);
+            current.put("documentKey", documentKey);
             next.put(current);
             for (int i = 0; i < previous.length(); i++) {
                 JSONObject item = previous.optJSONObject(i);
@@ -566,6 +594,7 @@ public final class MainActivity extends Activity {
             payload.put("markdown", decodeMarkdown(bytes));
             payload.put("name", cleanRecentName(item.optString("name")));
             payload.put("baseHref", "");
+            addReadingPosition(payload, recentDocumentKey(item, id));
             evaluate("window.MDPreview && window.MDPreview.render(" + payload + ");");
         } catch (IOException | RuntimeException | JSONException e) {
             removeRecentId(id);
@@ -601,6 +630,18 @@ public final class MainActivity extends Activity {
         @JavascriptInterface
         public void openRecent(String uri) {
             runOnUiThread(() -> openRecentId(uri));
+        }
+
+        @JavascriptInterface
+        public void saveReadingPosition(String documentKey, double progress) {
+            if (documentKey == null
+                || documentKey.isEmpty()
+                || Double.isNaN(progress)
+                || Double.isInfinite(progress)) {
+                return;
+            }
+            float normalized = (float) Math.max(0.0, Math.min(1.0, progress));
+            readingPositionPrefs().edit().putFloat(documentKey, normalized).apply();
         }
     }
 }

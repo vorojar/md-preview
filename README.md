@@ -90,7 +90,7 @@ The notarized macOS app includes a Finder extension. After dragging `MD Preview.
 
 Right-click inside a Finder folder to create Markdown, text, JSON, or HTML files, copy the folder path, or open the folder in Terminal. **New Markdown** creates a non-conflicting filename and opens it directly in MD Preview's source editor.
 
-On iPhone and iPad, Local Markdown Preview opens Markdown and plain-text files from Files and the iOS share sheet. On Android, MD Preview appears in the system "Open with" and share flows for Markdown files. Recent files are cached privately inside the app, so files opened from temporary providers such as WeChat or WeCom remain available later; stale recent entries are removed safely instead of crashing.
+On iPhone and iPad, Local Markdown Preview opens Markdown and plain-text files from Files and the iOS share sheet. On Android, MD Preview appears in the system "Open with" and share flows for Markdown files. Recent files are cached privately inside the app, so files opened from temporary providers such as WeChat or WeCom remain available later; stale recent entries are removed safely instead of crashing. Android also remembers normalized reading progress per document and restores it when the same source or cached Recent entry is opened again.
 
 ## Features
 
@@ -108,6 +108,7 @@ On iPhone and iPad, Local Markdown Preview opens Markdown and plain-text files f
 | Scroll continuity | Preview and source edit preserve normalized reading progress when their document heights differ. |
 | Start screen | Empty launches show Open File and local recent files, so the app is useful before anything is loaded. |
 | Mobile open | iOS opens Markdown from Files and the share sheet; Android can open Markdown from Files, WeChat, WeCom, and Android share sheets. |
+| Android continue reading | Reopening the same source or cached Recent document restores its last normalized reading position. |
 | Drag and drop | Drop a Markdown file into the window and it opens immediately. |
 | CLI open | `md-preview path/to/file.md` opens directly from a shell. |
 | Find in preview | `Cmd/Ctrl+F` opens a compact search bar for the rendered document. |

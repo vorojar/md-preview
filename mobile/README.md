@@ -5,7 +5,7 @@
 ## Scope
 
 - iOS: 原生 UIKit + `WKWebView`，声明 Markdown 文档类型，支持系统文档选择器和 Open In。
-- Android: 原生 Java + `WebView`，声明 `ACTION_VIEW` / `ACTION_SEND` intent filter，支持参与 Markdown 默认打开器选择。
+- Android: 原生 Java + `WebView`，声明 `ACTION_VIEW` / `ACTION_SEND` intent filter，支持参与 Markdown 默认打开器选择，并按文档保存归一化阅读位置供下次继续阅读。
 - 渲染层: `mobile/shared` 中的一份离线 HTML/JS/CSS，首屏只加载 `marked` 和 highlight.js，KaTeX/Mermaid 按文档内容延迟加载。
 
 ## Build

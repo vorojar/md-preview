@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added per-document reading-position persistence on Android, including recent cached documents and normalized restoration after deferred Markdown rendering changes the page height.
+
 ## 1.4.0
 
 - Added local Markdown and text document navigation: relative and absolute file links now open or activate an MD Preview tab, while missing or unsupported local targets stay on the current preview.
