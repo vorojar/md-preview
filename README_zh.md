@@ -90,7 +90,7 @@ MD Preview 支持通过拖拽、打开对话框、最近文件或命令行打开
 
 在 Finder 文件夹空白处右键，可以新建 Markdown、文本、JSON、HTML，复制目录路径，或在终端打开。选择**新建 Markdown**后会自动避开重名，并直接在 MD Preview 源码编辑器里打开新文件。
 
-iPhone 和 iPad 上，Local Markdown Preview 可以从“文件”和 iOS 分享面板打开 Markdown / 文本文件。Android 上，MD Preview 会出现在 Markdown 文件的“打开方式”和分享流程中。Recent 文件会缓存到应用私有目录，从微信、企业微信等临时来源打开过的文档后续也能继续打开；如果条目失效，会安全移除而不是闪退。
+iPhone 和 iPad 上，Local Markdown Preview 可以从“文件”和 iOS 分享面板打开 Markdown / 文本文件。Android 上，MD Preview 会出现在 Markdown 文件的“打开方式”和分享流程中。Recent 文件会缓存到应用私有目录，从微信、企业微信等临时来源打开过的文档后续也能继续打开；如果条目失效，会安全移除而不是闪退。Android 还会按文档记录归一化阅读进度，再次打开同一来源或 Recent 缓存时自动恢复。
 
 ## 功能
 
@@ -108,6 +108,7 @@ iPhone 和 iPad 上，Local Markdown Preview 可以从“文件”和 iOS 分享
 | 滚动连续 | 预览和源码高度不同时，切换仍按归一化阅读进度恢复位置。 |
 | 启动首页 | 空白启动时显示打开文件和本机最近文件，没加载文档也有明确入口。 |
 | 手机端打开 | iOS 支持从“文件”和分享面板打开 Markdown；Android 支持从文件管理器、微信、企业微信和系统分享面板打开 Markdown。 |
+| Android 继续阅读 | 再次打开同一来源或 Recent 缓存文档时，恢复上次归一化阅读位置。 |
 | 拖拽打开 | 把 Markdown 文件拖进窗口即可打开。 |
 | 命令行打开 | `md-preview path/to/file.md` 直接从 shell 打开。 |
 | 预览搜索 | `Cmd/Ctrl+F` 打开轻量搜索栏，在渲染后的文档内查找。 |

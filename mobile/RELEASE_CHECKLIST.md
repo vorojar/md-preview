@@ -7,6 +7,7 @@
 - Android: install `mobile/android/app/build/outputs/apk/debug/app-debug.apk` on a real phone and open `.md`, `.markdown`, `.mdown`, `.mkd` files from Files, WeChat, and WeCom.
 - Android: long-press a Markdown file, choose "Open with", select MD Preview, then verify the system offers it again as the default handler.
 - Android: verify `ACTION_SEND` from WeChat/WeCom share sheet opens the same document.
+- Android: scroll a long document, close the app, then reopen the same source and its cached Recent entry; both should restore the last normalized reading position.
 - iOS: install on a real iPhone, open Markdown files from Files, WeChat, and WeCom via the share sheet / Open In.
 - iOS: verify the app appears for `.md`, `.markdown`, `.mdown`, and `.mkd`; iOS does not allow silently forcing a default handler.
 - Both: test UTF-8, UTF-8 with BOM, UTF-16 LE/BE, large documents, tables wider than the screen, local images, external links, KaTeX, and Mermaid.

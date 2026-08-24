@@ -19,6 +19,15 @@ page.on('pageerror', error => errors.push(error.message));
 page.on('console', message => {
   if (message.type() === 'error') errors.push(message.text());
 });
+await page.addInitScript(() => {
+  window.__readingPositionSaves = [];
+  window.MDPreviewAndroid = {
+    getRecent() {},
+    saveReadingPosition(documentKey, progress) {
+      window.__readingPositionSaves.push({ documentKey, progress });
+    }
+  };
+});
 
 await page.goto(preview);
 await page.waitForLoadState('domcontentloaded');
@@ -85,6 +94,76 @@ const result = await page.evaluate((searchHits) => ({
   bad: window.__bad === 1
 }), searchHitCount);
 
+await page.emulateMedia({ media: 'screen', colorScheme: 'light' });
+const readingMarkdown = Array.from(
+  { length: 140 },
+  (_, index) => `## Reading section ${index + 1}\n\nParagraph ${index + 1} keeps the fixture scrollable.`
+).join('\n\n');
+await page.evaluate(markdown => {
+  window.MDPreview.render({
+    name: 'reading-position.md',
+    documentKey: 'uri:content://fixture/reading-position.md',
+    readingProgress: 0.62,
+    markdown
+  });
+}, readingMarkdown);
+await page.waitForFunction(() => {
+  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+  return maxScroll > 0 && Math.abs(window.scrollY / maxScroll - 0.62) < 0.025;
+});
+await page.evaluate(() => {
+  const extra = document.createElement('div');
+  extra.innerHTML = Array.from(
+    { length: 20 },
+    (_, index) => `<h2>Deferred section ${index + 1}</h2><p>Late rendered content.</p>`
+  ).join('');
+  document.getElementById('preview').appendChild(extra);
+});
+await page.waitForFunction(() => {
+  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+  return maxScroll > 0 && Math.abs(window.scrollY / maxScroll - 0.62) < 0.025;
+});
+await page.evaluate(() => {
+  window.dispatchEvent(new PointerEvent('pointerdown'));
+  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+  window.scrollTo(0, maxScroll * 0.37);
+});
+await page.waitForTimeout(300);
+const savedReadingPosition = await page.evaluate(() => {
+  const saves = window.__readingPositionSaves;
+  return saves[saves.length - 1];
+});
+await page.evaluate(({ markdown, progress }) => {
+  window.scrollTo(0, 0);
+  window.MDPreview.render({
+    name: 'reading-position.md',
+    documentKey: 'uri:content://fixture/reading-position.md',
+    readingProgress: progress,
+    markdown
+  });
+}, { markdown: readingMarkdown, progress: savedReadingPosition.progress });
+await page.waitForFunction(expected => {
+  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+  return maxScroll > 0 && Math.abs(window.scrollY / maxScroll - expected) < 0.025;
+}, savedReadingPosition.progress);
+const reopenedReadingProgress = await page.evaluate(() => {
+  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+  return maxScroll ? window.scrollY / maxScroll : 0;
+});
+await page.evaluate(() => {
+  window.MDPreview.render({
+    name: 'short.md',
+    documentKey: 'uri:content://fixture/short.md',
+    readingProgress: 0.8,
+    markdown: '# Short document'
+  });
+  window.MDPreview.flushReadingPosition();
+});
+const shortDocument = await page.evaluate(() => ({
+  scrollY: window.scrollY,
+  saved: window.__readingPositionSaves[window.__readingPositionSaves.length - 1]
+}));
+
 await browser.close();
 
 if (errors.length) {
@@ -126,6 +205,19 @@ if (result.printTopbarDisplay !== 'none' ||
 }
 if (result.bad) {
   throw new Error('javascript: link executed');
+}
+if (savedReadingPosition.documentKey !== 'uri:content://fixture/reading-position.md' ||
+    Math.abs(savedReadingPosition.progress - 0.37) > 0.025 ||
+    Math.abs(reopenedReadingProgress - savedReadingPosition.progress) > 0.025) {
+  throw new Error(`Reading position persistence failed: ${JSON.stringify({
+    savedReadingPosition,
+    reopenedReadingProgress
+  })}`);
+}
+if (shortDocument.scrollY !== 0 ||
+    shortDocument.saved.documentKey !== 'uri:content://fixture/short.md' ||
+    shortDocument.saved.progress !== 0) {
+  throw new Error(`Short-document reading position failed: ${JSON.stringify(shortDocument)}`);
 }
 
 console.log('[mobile-renderer] OK');
