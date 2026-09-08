@@ -2458,6 +2458,31 @@ mod tests {
     }
 
     #[test]
+    fn document_links_resolve_against_active_file_without_webview_base() {
+        let dir = temp_test_dir("relative-doc-links");
+        fs::create_dir_all(dir.join("folder")).unwrap();
+        let active = dir.join("folder/current.md");
+        let linked = dir.join("含 空格.md");
+        fs::write(&linked, "# Linked").unwrap();
+        let expected = Some(fs::canonicalize(&linked).unwrap());
+        assert_eq!(
+            resolve_document_link("../含%20空格.md#section", Some(&active)),
+            expected
+        );
+        assert_eq!(
+            resolve_document_link("../含 空格.md", Some(&active)),
+            expected
+        );
+        assert_eq!(resolve_document_link("missing.md", Some(&active)), None);
+        assert_eq!(
+            resolve_document_link("https://example.com/file.md", Some(&active)),
+            None
+        );
+        assert_eq!(resolve_document_link("../", Some(&active)), None);
+        assert_eq!(resolve_document_link("relative.md", None), None);
+    }
+
+    #[test]
     fn linux_nvidia_compat_env_only_sets_dmabuf_when_unconfigured() {
         assert_eq!(
             linux_webkit_compat_env(None, None, true),
@@ -2554,7 +2579,7 @@ mod tests {
         assert!(page.contains("body.empty .toolbar.has-update"));
         assert!(page.contains("bindAnchorNavigation"));
         assert!(page.contains("event.target.closest('#preview a[href]')"));
-        assert!(page.contains("window.ipc.postMessage('open-local-link:' + resolved)"));
+        assert!(page.contains("window.ipc.postMessage('open-local-link:' + href)"));
         assert!(page.contains(".markdown-alert-important"));
         assert!(page.contains(".markdown-alert-title"));
         let light_alert = page.find("background: #dafbe1").unwrap();
@@ -3842,6 +3867,17 @@ fn is_supported_document(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+fn resolve_document_link(value: &str, active: Option<&Path>) -> Option<PathBuf> {
+    let url = match url::Url::parse(value) {
+        Ok(url) => url,
+        Err(url::ParseError::RelativeUrlWithoutBase) => {
+            url::Url::from_file_path(active?).ok()?.join(value).ok()?
+        }
+        Err(_) => return None,
+    };
+    local_document_path_from_url(url.as_str())
+}
+
 fn local_document_path_from_url(value: &str) -> Option<PathBuf> {
     let url = url::Url::parse(value).ok()?;
     if url.scheme() != "file" {
@@ -4419,7 +4455,12 @@ fn main() {
                     }
                 }
             } else if let Some(url) = body.strip_prefix("open-local-link:") {
-                if let Some(path) = local_document_path_from_url(url) {
+                let active_path = session_for_ipc
+                    .lock()
+                    .unwrap()
+                    .active()
+                    .map(|tab| tab.path.clone());
+                if let Some(path) = resolve_document_link(url, active_path.as_deref()) {
                     let _ = proxy_for_ipc.send_event(UserEvent::OpenPaths(vec![path], false));
                 }
             } else if let Some(rest) = body.strip_prefix("tab-action:") {

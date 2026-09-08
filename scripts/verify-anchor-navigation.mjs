@@ -78,6 +78,8 @@ if (result.serverAlertTitle !== 'Important' ||
   throw new Error(`alert enhancement failed: ${JSON.stringify(result)}`);
 }
 
+// In-memory WebViews may not resolve a file base URL. Native code owns the document path.
+await page.evaluate(() => document.querySelector('base').remove());
 await page.click('#local-doc-link');
 const localLinkResult = await page.evaluate(() => ({
   href: window.location.href,
@@ -89,7 +91,7 @@ if (localLinkResult.href !== result.href) {
   throw new Error(`local document link navigated the page: ${localLinkResult.href}`);
 }
 if (localLinkResult.ipcMessages.length !== 1 ||
-    localLinkResult.ipcMessages[0] !== 'open-local-link:file:///tmp/md-preview-anchor-fixture/folder/another%20doc.md#part') {
+    localLinkResult.ipcMessages[0] !== 'open-local-link:folder/another%20doc.md#part') {
   throw new Error(`local document link was not routed through IPC: ${JSON.stringify(localLinkResult.ipcMessages)}`);
 }
 

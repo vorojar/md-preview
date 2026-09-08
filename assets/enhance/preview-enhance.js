@@ -380,10 +380,10 @@
 
       var href = link.getAttribute('href') || '';
       if (href.charAt(0) !== '#') {
-        var resolved = link.href || '';
-        if (resolved.indexOf('file:') === 0 && window.ipc && window.ipc.postMessage) {
+        var local = /^file:/i.test(href) || !/^[a-z][a-z0-9+.-]*:/i.test(href);
+        if (local && window.ipc && window.ipc.postMessage) {
           event.preventDefault();
-          window.ipc.postMessage('open-local-link:' + resolved);
+          window.ipc.postMessage('open-local-link:' + href);
         }
         return;
       }
