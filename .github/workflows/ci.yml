@@ -16,6 +16,8 @@ jobs:
 
       - name: Build (release)
         run: cargo build --release
+      - name: Test document handling and launch forwarding
+        run: cargo test
 
       - name: Verify GUI subsystem (no console window)
         shell: pwsh
@@ -61,6 +63,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Build (release)
         run: cargo build --release
+      - name: Test document handling and launch forwarding
+        run: cargo test
 
   build-linux:
     runs-on: ubuntu-latest
@@ -73,3 +77,5 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Build (release)
         run: cargo build --release
+      - name: Test document handling and launch forwarding
+        run: cargo test

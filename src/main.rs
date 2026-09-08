@@ -3,6 +3,7 @@
     windows_subsystem = "windows"
 )]
 
+mod instance;
 mod session;
 
 use notify::{Event, RecursiveMode, Watcher};
@@ -4218,6 +4219,25 @@ fn main() {
         })
         .collect::<Vec<_>>();
 
+    let primary = if bench {
+        None
+    } else {
+        match instance::acquire(
+            &config_dir(),
+            &instance::Launch {
+                paths: cli_paths.clone(),
+                edit: edit_from_cli,
+            },
+        ) {
+            Ok(Some(primary)) => Some(primary),
+            Ok(None) => return,
+            Err(error) => {
+                show_warning_dialog("Could Not Open MD Preview", &error.to_string());
+                return;
+            }
+        }
+    };
+
     let lang = detect_lang();
     let strings = Strings::for_lang(lang);
     register_as_default(lang);
@@ -4231,6 +4251,14 @@ fn main() {
 
     let event_loop: EventLoop<UserEvent> = EventLoopBuilder::with_user_event().build();
     let proxy = event_loop.create_proxy();
+    if let Some(primary) = primary {
+        let proxy = proxy.clone();
+        primary.listen(move |launch| {
+            proxy
+                .send_event(UserEvent::OpenPaths(launch.paths, launch.edit))
+                .is_ok()
+        });
+    }
     let initial_theme = load_theme_choice();
     install_macos_menu(proxy.clone(), initial_theme);
     let native_updater_enabled = native_updater_enabled();
@@ -4676,6 +4704,9 @@ fn main() {
                 }
             }
             TaoEvent::UserEvent(UserEvent::OpenPaths(paths, edit_on_open)) => {
+                window.set_minimized(false);
+                window.set_focus();
+                if paths.is_empty() { return; }
                 let mut session = session_for_event.lock().unwrap();
                 let previous_active = session.active_id;
                 let preserve_active = session.active().map(|tab| tab.dirty).unwrap_or(false);
