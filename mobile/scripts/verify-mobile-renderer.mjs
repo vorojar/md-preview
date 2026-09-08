@@ -85,6 +85,39 @@ const result = await page.evaluate((searchHits) => ({
   bad: window.__bad === 1
 }), searchHitCount);
 
+await page.emulateMedia({ media: 'screen' });
+await page.evaluate(() => {
+  window.__positions = {};
+  window.MDPreviewAndroid = {
+    getReadingProgress: id => window.__positions[id] || 0,
+    saveReadingProgress: (id, progress) => { window.__positions[id] = progress; }
+  };
+  window.__readingFixture = { documentId: 'content://provider/document/A', name: 'A.md', markdown: '# Reading\n\n' + ('A long paragraph for reading.\n\n'.repeat(200)) };
+  window.MDPreview.render(window.__readingFixture);
+});
+await page.waitForTimeout(100);
+if (await page.evaluate(() => window.scrollY) !== 0) throw new Error('New document must start at top');
+await page.evaluate(() => {
+  window.dispatchEvent(new Event('wheel'));
+  window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) * 0.6);
+});
+await page.waitForTimeout(100);
+const progress = await page.evaluate(() => window.__positions['content://provider/document/A']);
+if (Math.abs(progress - 0.6) > 0.02) throw new Error(`Reading progress not saved: ${progress}`);
+await page.evaluate(() => window.MDPreview.render({ ...window.__readingFixture, documentId: 'content://provider/document/B' }));
+await page.waitForTimeout(100);
+if (await page.evaluate(() => window.scrollY) !== 0) throw new Error('Different files share reading progress');
+await page.evaluate(() => window.MDPreview.render(window.__readingFixture));
+await page.waitForTimeout(100);
+const restored = await page.evaluate(() => window.scrollY / (document.documentElement.scrollHeight - innerHeight));
+if (Math.abs(restored - 0.6) > 0.02) throw new Error(`Reading progress not restored: ${restored}`);
+await page.evaluate(() => {
+  const block = document.createElement('div'); block.style.height = '1000px';
+  document.getElementById('preview').append(block);
+});
+await page.waitForTimeout(100);
+const delayed = await page.evaluate(() => window.scrollY / (document.documentElement.scrollHeight - innerHeight));
+if (Math.abs(delayed - 0.6) > 0.02) throw new Error(`Delayed layout lost reading progress: ${delayed}`);
 await browser.close();
 
 if (errors.length) {

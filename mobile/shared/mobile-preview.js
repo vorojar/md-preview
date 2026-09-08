@@ -119,7 +119,41 @@
     });
   }
 
+  var readingDocumentId = null;
+  var restoringReading = false;
+  var readingProgress = 0;
+  function saveReadingProgress() {
+    if (!readingDocumentId || restoringReading || !window.MDPreviewAndroid ||
+        !window.MDPreviewAndroid.saveReadingProgress) return;
+    var max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    readingProgress = max > 0 ? Math.max(0, Math.min(1, window.scrollY / max)) : 0;
+    window.MDPreviewAndroid.saveReadingProgress(readingDocumentId, readingProgress);
+  }
+  function restoreReadingProgress() {
+    if (!restoringReading) return;
+    var max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    window.scrollTo(0, max * readingProgress);
+  }
+  function userStartedReading() { restoringReading = false; }
+  ['wheel', 'touchstart', 'pointerdown', 'keydown'].forEach(function(name) {
+    window.addEventListener(name, userStartedReading, { passive: true });
+  });
+  window.addEventListener('scroll', saveReadingProgress, { passive: true });
+  window.addEventListener('pagehide', saveReadingProgress);
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) saveReadingProgress();
+  });
+  if (window.ResizeObserver) new ResizeObserver(restoreReadingProgress).observe(previewEl);
+  window.__mdPreviewSaveReadingProgress = saveReadingProgress;
+
   function render(payload) {
+    saveReadingProgress();
+    readingDocumentId = payload && payload.documentId ? String(payload.documentId) : null;
+    restoringReading = !!readingDocumentId;
+    readingProgress = readingDocumentId && window.MDPreviewAndroid && window.MDPreviewAndroid.getReadingProgress
+      ? Number(window.MDPreviewAndroid.getReadingProgress(readingDocumentId)) : 0;
+    if (!Number.isFinite(readingProgress) || readingProgress < 0 || readingProgress > 1) readingProgress = 0;
+
     closeSearch();
     var markdown = payload && payload.markdown ? String(payload.markdown) : '';
     var name = payload && payload.name ? String(payload.name) : 'Untitled.md';
@@ -131,6 +165,10 @@
     if (baseHref) baseEl.setAttribute('href', baseHref);
     else baseEl.removeAttribute('href');
     previewEl.innerHTML = window.marked ? window.marked.parse(markdown) : markdown;
+    if (readingDocumentId) {
+      restoreReadingProgress();
+      requestAnimationFrame(restoreReadingProgress);
+    }
     idle(function() {
       if (window.hljs && window.hljs.highlightAll) window.hljs.highlightAll();
       enhance(flags);

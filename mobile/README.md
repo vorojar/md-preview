@@ -47,3 +47,20 @@ Android release artifacts:
 - Android upload keystore 和 `.env.mobile-release` 是本机发布凭据，已被 `.gitignore` 忽略；不要提交或发到聊天/文档里。
 - iOS archive 需要安装可用 iOS platform，并设置 `MD_PREVIEW_IOS_TEAM_ID` 或在 Xcode 中配置签名团队。
 - 发布前真机验收清单见 `mobile/RELEASE_CHECKLIST.md`。
+
+## Android reading-position regression
+
+The release instrumentation test uses the real WebView bridge and verifies the source URI and Recent Files copy across process restarts. Use a test emulator explicitly (replace `emulator-5554` if needed), with the existing release signing environment loaded:
+
+```bash
+cd mobile/android
+gradle :app:assembleRelease :app:assembleReleaseAndroidTest
+adb -s emulator-5554 install -r app/build/outputs/apk/release/app-release.apk
+adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/release/app-release-androidTest.apk
+adb -s emulator-5554 shell am force-stop app.mdpreview.mobile
+adb -s emulator-5554 shell am instrument -w -e phase write app.mdpreview.mobile.test/app.mdpreview.mobile.ReadingProgressInstrumentation
+adb -s emulator-5554 shell am force-stop app.mdpreview.mobile
+adb -s emulator-5554 shell am instrument -w -e phase restore app.mdpreview.mobile.test/app.mdpreview.mobile.ReadingProgressInstrumentation
+```
+
+Both phases must print `PASS`; an `adb` exit code alone does not prove the assertions passed. The test creates its own `reading-progress-test.md` fixture.

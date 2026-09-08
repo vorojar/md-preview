@@ -195,7 +195,8 @@ public final class MainActivity extends Activity {
             payload.put("markdown", markdown);
             payload.put("name", name);
             payload.put("baseHref", "file".equals(uri.getScheme()) ? baseHref(uri) : "");
-            saveRecent(name, bytes);
+            payload.put("documentId", uri.toString());
+            saveRecent(name, bytes, uri.toString());
             evaluate("window.MDPreview && window.MDPreview.render(" + payload + ");");
         } catch (IOException | RuntimeException | JSONException e) {
             if (fromRecent) {
@@ -443,7 +444,7 @@ public final class MainActivity extends Activity {
         return directory;
     }
 
-    private void saveRecent(String name, byte[] bytes) {
+    private void saveRecent(String name, byte[] bytes, String documentId) {
         String displayName = cleanRecentName(name);
         String fileName = UUID.randomUUID() + "-" + safeRecentFileName(displayName);
         File file = new File(recentDirectory(), fileName);
@@ -459,6 +460,7 @@ public final class MainActivity extends Activity {
             JSONObject current = new JSONObject();
             current.put("id", fileName);
             current.put("name", displayName);
+            current.put("documentId", documentId);
             next.put(current);
             for (int i = 0; i < previous.length(); i++) {
                 JSONObject item = previous.optJSONObject(i);
@@ -565,6 +567,7 @@ public final class MainActivity extends Activity {
             JSONObject payload = new JSONObject();
             payload.put("markdown", decodeMarkdown(bytes));
             payload.put("name", cleanRecentName(item.optString("name")));
+            payload.put("documentId", item.optString("documentId", id));
             payload.put("baseHref", "");
             evaluate("window.MDPreview && window.MDPreview.render(" + payload + ");");
         } catch (IOException | RuntimeException | JSONException e) {
@@ -577,7 +580,26 @@ public final class MainActivity extends Activity {
         evaluate("window.MDPreview && window.MDPreview.setRecent(" + recentFiles() + ");");
     }
 
+    @Override
+    protected void onPause() {
+        evaluate("window.__mdPreviewSaveReadingProgress && window.__mdPreviewSaveReadingProgress();");
+        super.onPause();
+    }
+
     private final class Bridge {
+        @JavascriptInterface
+        public float getReadingProgress(String documentId) {
+            return getSharedPreferences("reading-progress", MODE_PRIVATE).getFloat(documentId, 0f);
+        }
+
+        @JavascriptInterface
+        public void saveReadingProgress(String documentId, float progress) {
+            if (documentId == null || documentId.isEmpty() || !Float.isFinite(progress)
+                || progress < 0f || progress > 1f) return;
+            getSharedPreferences("reading-progress", MODE_PRIVATE).edit()
+                .putFloat(documentId, progress).apply();
+        }
+
         @JavascriptInterface
         public void openFile() {
             runOnUiThread(MainActivity.this::openDocumentPicker);

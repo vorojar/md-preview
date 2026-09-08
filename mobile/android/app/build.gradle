@@ -5,13 +5,15 @@ plugins {
 android {
     namespace = "app.mdpreview.mobile"
     compileSdk = 36
+    testBuildType = "release"
 
     defaultConfig {
         applicationId = "app.mdpreview.mobile"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
-        versionName = "1.0.9"
+        versionCode = 11
+        versionName = "1.0.10"
+        testInstrumentationRunner = "app.mdpreview.mobile.ReadingProgressInstrumentation"
     }
 
     signingConfigs {
