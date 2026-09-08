@@ -51,7 +51,7 @@ AI 编程工具现在会生成大量 Markdown：`README.md`、`plan.md`、任务
 | iOS / iPadOS | [App Store 上的 Local Markdown Preview](https://apps.apple.com/cn/app/local-markdown-preview/id6779451523) | 原生 iPhone / iPad 预览器，可从“文件”和 iOS 分享面板打开 Markdown。 |
 | Android | `MD-Preview-Android.apk` | 原生 Android 预览器，可从文件管理器、微信、企业微信和分享面板打开 Markdown。 |
 
-Android 版本以单独的 mobile release 发布，例如 [mobile-android-v1.0.7](https://github.com/vorojar/md-preview/releases/tag/mobile-android-v1.0.7)。iOS 版本已经在 App Store 上架，名称为 [Local Markdown Preview](https://apps.apple.com/cn/app/local-markdown-preview/id6779451523)。
+Android 版本以单独的 mobile release 发布，例如 [mobile-android-v1.0.10](https://github.com/vorojar/md-preview/releases/tag/mobile-android-v1.0.10)。iOS 版本已经在 App Store 上架，名称为 [Local Markdown Preview](https://apps.apple.com/cn/app/local-markdown-preview/id6779451523)。
 
 也可以从源码构建：
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.1
+
+- Fixed repeated autosave interruptions in synchronized folders by comparing disk content, ignoring delayed identical writes, and releasing the session lock before showing external-change warnings. Genuine external edits still pause autosave to protect unsaved text.
+- Routed repeated desktop launches into the existing window: new files open as tabs, already-open files reuse their tabs, and the window is brought forward.
+- Fixed relative Markdown/text links when an in-memory WebView cannot resolve its file base URL. Paths are now resolved against the active document in native code, and missing or unsupported targets stay in the current preview.
+- Made the document fill the available window width at every content zoom level, removing the fixed 820px reading-width cap.
+
+## mobile-android-v1.0.10
+
+- Added persistent per-document reading progress on Android, including reopening a file from the system and from Recent Files.
+- Kept reading positions separate for different source URIs and restored progress after delayed document layout changes.
+
 ## 1.4.0
 
 - Added local Markdown and text document navigation: relative and absolute file links now open or activate an MD Preview tab, while missing or unsupported local targets stay on the current preview.

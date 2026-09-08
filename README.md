@@ -51,7 +51,7 @@ Get the latest build from [GitHub Releases](https://github.com/vorojar/md-previe
 | iOS / iPadOS | [Local Markdown Preview on the App Store](https://apps.apple.com/cn/app/local-markdown-preview/id6779451523) | Native iPhone and iPad viewer for opening Markdown from Files and the iOS share sheet. |
 | Android | `MD-Preview-Android.apk` | Native Android viewer for opening Markdown files from Files, WeChat, WeCom, and share sheets. |
 
-Android builds are published as separate mobile releases, for example [mobile-android-v1.0.7](https://github.com/vorojar/md-preview/releases/tag/mobile-android-v1.0.7). The iOS build is now available on the App Store as [Local Markdown Preview](https://apps.apple.com/cn/app/local-markdown-preview/id6779451523).
+Android builds are published as separate mobile releases, for example [mobile-android-v1.0.10](https://github.com/vorojar/md-preview/releases/tag/mobile-android-v1.0.10). The iOS build is now available on the App Store as [Local Markdown Preview](https://apps.apple.com/cn/app/local-markdown-preview/id6779451523).
 
 You can also build from source:
 
