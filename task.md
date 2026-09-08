@@ -1,4 +1,4 @@
-# 进行中：审查 #39–#43、修复并发布
+# 已完成：审查 #39–#43、修复并发布
 
 ## 目标与范围
 
@@ -24,7 +24,15 @@
 - 首轮 Windows/Linux/macOS CI `34211572084` 全部构建和单测成功。
 - Android `mobile-android-v1.0.10` 已发布；APK/AAB 线上 SHA-256 与本地一致，正文与 CHANGELOG 一致；#43 已回复并按 completed 关闭。
 - #42 后续讨论补充 Mermaid 不缩放：实际 SVG 节点在 100%/200% 下原先同为 188.125px，修复后为两倍；覆盖窄屏局部横向滚动，原生 macOS 同步放大已验证；12 节点宽图从 Node 0 到 Node 11 均可通过局部滚动条访问。
-- 待完成：补充图表修复的 CI、桌面 Release、macOS 签名公证及其余 issue 回复关闭。
+- 最终提交 `72f685b`：CI `34212491711` 与 Release `34212494455` 全绿，Windows/Linux/macOS 构建和 42 个 Rust 单测通过。
+- 桌面 [v1.4.1](https://github.com/vorojar/md-preview/releases/tag/v1.4.1) 正式发布，含 Windows exe、Linux tar.gz、macOS universal DMG、Sparkle appcast 四项资产。
+- Apple 内层 app submission `d96d31c4-226b-49ed-8018-d2d9adfa4102`、外层 DMG submission `7c84a1b3-bc9e-464f-9d69-d35164a439bd` 均为 `Accepted`，两层 staple 验证通过。
+- macOS：`codesign --verify --deep --strict`、Gatekeeper `Notarized Developer ID`、x86_64/arm64 universal 架构、Finder 扩展 sandbox entitlement、DMG Applications 链接和 `.DS_Store` 均通过。
+- Sparkle：以 DMG 内应用的 `SUPublicEDKey` 对签名进行独立 Ed25519 验证，URL/文件大小一致；线上 latest appcast 与本地逐字节相同，DMG/appcast 线上 SHA-256 与本地一致。
+- 桌面和 Android Release 正文均与 CHANGELOG 对应段落完全一致；官网结构化版本已更新到 1.4.1。
+- #39、#40、#41、#42、#43 均已按原语言回复并按 completed 关闭；重新查询开放 issues 为 0。
+- 验证边界：坚果云场景以同内容同步/元数据事件复现，没有运行真实坚果云客户端；Windows/Linux 有原生构建和单测，界面交互验收使用 macOS WebView 与 Playwright。
+- 用户已有未提交修改保持原样；发布使用 Actions 产物签名，没有替换用户正在运行的 `/Applications/MD Preview.app`。
 
 ## 初查证据
 
