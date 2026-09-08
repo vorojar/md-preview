@@ -1167,7 +1167,8 @@ body.has-tabs {{ --chrome-top: 50px; }}
 #preview img {{ max-width: 100%; }}
 #preview .katex-display {{ overflow-x: auto; overflow-y: hidden; padding: 0.15em 0; }}
 #preview .mdp-mermaid {{ margin: 1.2em 0; overflow-x: auto; text-align: center; }}
-#preview .mdp-mermaid svg {{ max-width: 100%; height: auto; }}
+/* Compensate zoom's percentage width so window-fitted diagrams can grow and scroll. */
+#preview .mdp-mermaid svg {{ max-width: 100%; height: auto; display: block; margin: 0 auto; width: calc(100% * var(--content-scale)); zoom: var(--content-scale); }}
 #preview .mdp-mermaid-error, #preview .mdp-math-error {{ color: #b42318; }}
 #preview hr {{ border: none; border-top: 1px solid #e1e4e8; margin: 2em 0; }}
 #preview a {{ color: #0969da; text-decoration: none; }}

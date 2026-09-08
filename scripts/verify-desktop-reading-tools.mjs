@@ -201,5 +201,33 @@ for (const width of [390, 900, 1920]) {
   const appWidth = await page.locator('#app').evaluate(el => el.getBoundingClientRect().width);
   if (Math.abs(appWidth - available) > 2) throw new Error(`Document wastes window width: ${appWidth}/${available}`);
 }
+const diagramCss = mainRs.split('\n').filter(line => line.startsWith('#preview .mdp-mermaid ')).join('\n')
+  .replaceAll('{{', '{').replaceAll('}}', '}');
+await page.addStyleTag({ content: diagramCss });
+await page.addScriptTag({ path: resolve(root, 'assets/mermaid/mermaid.min.js') });
+await page.evaluate(async () => {
+  mermaid.initialize({ startOnLoad: false, securityLevel: 'strict' });
+  const { svg } = await mermaid.render('zoom-diagram', 'graph LR; A[Readable diagram] --> B[Zoomed node]');
+  document.getElementById('preview').innerHTML = '<div class="mdp-mermaid">' + svg + '</div>';
+});
+await page.keyboard.press(`${modifier}+0`);
+const nodeWidth = await page.locator('.mdp-mermaid .node').first().evaluate(el => el.getBoundingClientRect().width);
+for (let i = 0; i < 10; i++) await page.keyboard.press(`${modifier}+=`);
+const zoomedNodeWidth = await page.locator('.mdp-mermaid .node').first().evaluate(el => el.getBoundingClientRect().width);
+if (Math.abs(zoomedNodeWidth / nodeWidth - 2) > 0.05) {
+  throw new Error(`Mermaid did not zoom with content: ${nodeWidth} -> ${zoomedNodeWidth}`);
+}
+await page.setViewportSize({ width: 390, height: 844 });
+const diagramOverflow = await page.evaluate(() => ({
+  document: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  diagram: document.querySelector('.mdp-mermaid').scrollWidth - document.querySelector('.mdp-mermaid').clientWidth,
+}));
+if (diagramOverflow.diagram <= 1) throw new Error(`Enlarged diagram must scroll locally: ${JSON.stringify(diagramOverflow)}`);
+if (diagramOverflow.document > 1) throw new Error(`Diagram zoom overflows the document: ${JSON.stringify(diagramOverflow)}`);
+await page.keyboard.press(`${modifier}+0`);
+const narrowBase = await page.locator('.mdp-mermaid .node').first().evaluate(el => el.getBoundingClientRect().width);
+for (let i = 0; i < 10; i++) await page.keyboard.press(`${modifier}+=`);
+const narrowZoom = await page.locator('.mdp-mermaid .node').first().evaluate(el => el.getBoundingClientRect().width);
+if (Math.abs(narrowZoom / narrowBase - 2) > 0.05) throw new Error(`Constrained diagram does not zoom: ${narrowBase} -> ${narrowZoom}`);
 await browser.close();
 console.log('[desktop-reading-tools-verify] OK');

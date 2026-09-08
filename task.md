@@ -21,7 +21,10 @@
 - 原生 macOS：中文空格相对路径打开新标签、父目录返回复用标签、缺失链接留在当前页面、重复 CLI 启动只新增一个标签、宽屏 140% 缩放布局、同步元数据事件期间自动保存均通过。
 - Android API 35 release instrumentation：60% 进度写入 PASS，force-stop 后恢复 PASS；测试明确指定 emulator-5554，未操作已连接实体设备。
 - 完整构建：macOS universal、iOS、Android debug/release APK/AAB 通过；release 签名有效。
-- 待完成：跨平台 CI、桌面/Android Release、macOS 签名公证及发布后 issue 回复关闭。
+- 首轮 Windows/Linux/macOS CI `34211572084` 全部构建和单测成功。
+- Android `mobile-android-v1.0.10` 已发布；APK/AAB 线上 SHA-256 与本地一致，正文与 CHANGELOG 一致；#43 已回复并按 completed 关闭。
+- #42 后续讨论补充 Mermaid 不缩放：实际 SVG 节点在 100%/200% 下原先同为 188.125px，修复后为两倍；覆盖窄屏局部横向滚动，原生 macOS 同步放大已验证；12 节点宽图从 Node 0 到 Node 11 均可通过局部滚动条访问。
+- 待完成：补充图表修复的 CI、桌面 Release、macOS 签名公证及其余 issue 回复关闭。
 
 ## 初查证据
 
