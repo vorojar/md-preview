@@ -14,7 +14,7 @@ use std::path::Component;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tao::dpi::{LogicalPosition, LogicalSize};
 use tao::event::{Event as TaoEvent, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy};
@@ -28,7 +28,6 @@ static APP_DIRTY: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug)]
 struct SelfWriteRecord {
-    at: Instant,
     path: PathBuf,
     content: String,
 }
@@ -2743,7 +2742,6 @@ mod tests {
         let path = dir.join("note.md");
         fs::write(&path, "saved by app").unwrap();
         let record = SelfWriteRecord {
-            at: Instant::now(),
             path: path.clone(),
             content: "saved by app".to_string(),
         };
@@ -2752,6 +2750,60 @@ mod tests {
 
         fs::write(&path, "external edit").unwrap();
         assert!(!self_write_still_matches_disk(Some(&record), &path));
+    }
+
+    #[test]
+    fn sync_events_ignore_identical_bytes_but_detect_external_edits_and_reverts() {
+        let path = PathBuf::from("note.md");
+        let mut observed = Some(b"initial".to_vec());
+        let mut own = Some(SelfWriteRecord {
+            path: path.clone(),
+            content: "saved".to_string(),
+        });
+        assert!(!file_content_should_reload(
+            &path,
+            Some(b"initial".to_vec()),
+            &mut observed,
+            &mut own
+        ));
+        assert!(!file_content_should_reload(
+            &path,
+            Some(b"saved".to_vec()),
+            &mut observed,
+            &mut own
+        ));
+        for _ in 0..100 {
+            assert!(!file_content_should_reload(
+                &path,
+                Some(b"saved".to_vec()),
+                &mut observed,
+                &mut own
+            ));
+        }
+        assert!(file_content_should_reload(
+            &path,
+            Some(b"external".to_vec()),
+            &mut observed,
+            &mut own
+        ));
+        assert!(file_content_should_reload(
+            &path,
+            Some(b"saved".to_vec()),
+            &mut observed,
+            &mut own
+        ));
+        assert!(file_content_should_reload(
+            &path,
+            None,
+            &mut observed,
+            &mut own
+        ));
+        assert!(file_content_should_reload(
+            &path,
+            Some(b"saved".to_vec()),
+            &mut observed,
+            &mut own
+        ));
     }
 
     #[test]
@@ -3812,6 +3864,8 @@ fn install_file_watcher(
     let Some(path) = path else {
         return;
     };
+    let mut observed_content = fs::read(&path).ok();
+    *last_self_write.lock().unwrap() = None;
     let target_path = path.clone();
     let callback_path = path.clone();
     let proxy = proxy.clone();
@@ -3819,8 +3873,14 @@ fn install_file_watcher(
     if let Ok(mut watcher) = notify::recommended_watcher(move |result: Result<Event, _>| {
         if let Ok(event) = result {
             if event_should_reload_file(&event, &callback_path) {
-                let last_self_write = last_self_write.lock().unwrap();
-                if !self_write_still_matches_disk(last_self_write.as_ref(), &callback_path) {
+                let content = fs::read(&callback_path).ok();
+                let mut last_self_write = last_self_write.lock().unwrap();
+                if file_content_should_reload(
+                    &callback_path,
+                    content,
+                    &mut observed_content,
+                    &mut last_self_write,
+                ) {
                     let _ = proxy.send_event(UserEvent::FileChanged(callback_path.clone()));
                 }
             }
@@ -3833,12 +3893,34 @@ fn install_file_watcher(
     }
 }
 
+fn file_content_should_reload(
+    path: &Path,
+    content: Option<Vec<u8>>,
+    observed: &mut Option<Vec<u8>>,
+    last_self_write: &mut Option<SelfWriteRecord>,
+) -> bool {
+    if content == *observed {
+        return false;
+    }
+    let is_self_write = last_self_write.as_ref().is_some_and(|record| {
+        record.path == path && content.as_deref() == Some(record.content.as_bytes())
+    });
+    *observed = content;
+    if is_self_write {
+        return false;
+    }
+    // A subsequent revert to our old snapshot is a real change too.
+    if observed.is_some() {
+        *last_self_write = None;
+    }
+    true
+}
+
 fn self_write_still_matches_disk(record: Option<&SelfWriteRecord>, path: &Path) -> bool {
     let Some(record) = record else {
         return false;
     };
     record.path == path
-        && record.at.elapsed() < Duration::from_millis(500)
         && fs::read(path)
             .map(|content| content == record.content.as_bytes())
             .unwrap_or(false)
@@ -4333,7 +4415,6 @@ fn main() {
                         return;
                     };
                     *last_self_write_for_ipc.lock().unwrap() = Some(SelfWriteRecord {
-                        at: Instant::now(),
                         path: path.clone(),
                         content: content.to_string(),
                     });
@@ -4442,7 +4523,6 @@ fn main() {
                     .map(|tab| tab.path.clone());
                 if let Some(path) = path {
                     *last_self_write_for_ipc.lock().unwrap() = Some(SelfWriteRecord {
-                        at: Instant::now(),
                         path: path.clone(),
                         content: content.to_string(),
                     });
@@ -4719,6 +4799,9 @@ fn main() {
                 let Some(path) = pending_external_change.take() else {
                     return;
                 };
+                if self_write_still_matches_disk(last_self_write.lock().unwrap().as_ref(), &path) {
+                    return;
+                }
                 let mut session = session_for_event.lock().unwrap();
                 if session.active().map(|tab| tab.path.as_path()) == Some(path.as_path()) {
                     let session_dirty = session.active().map(|tab| tab.dirty).unwrap_or(false);
@@ -4730,6 +4813,7 @@ fn main() {
                         let _ = webview.evaluate_script(
                             "if(window.__mdPreviewPauseAutosave)window.__mdPreviewPauseAutosave();",
                         );
+                        drop(session);
                         if warned_external_change.as_ref() != Some(&path) {
                             show_warning_dialog(
                                 "File Changed on Disk",
