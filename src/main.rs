@@ -1093,7 +1093,7 @@ body {{
   color: #1a1a1a; background: #fff;
 }}
 body.has-tabs {{ --chrome-top: 50px; }}
-#app {{ max-width: 820px; margin: 0 auto; padding: 24px; }}
+#app {{ width: 100%; box-sizing: border-box; margin: 0 auto; padding: 24px; }}
 #preview {{ font-size: calc(15px * var(--content-scale)); }}
 #preview .front-matter {{
   margin: 0 0 1.5em;

@@ -14,6 +14,7 @@ const scriptStart = mainRs.lastIndexOf('<script>', markerIndex);
 const scriptEnd = mainRs.indexOf('</script>', markerIndex);
 if (scriptStart < 0 || scriptEnd < 0) throw new Error('desktop script block not found');
 
+const layoutCss = mainRs.match(/#app \{\{[^\n]+/)[0].replaceAll("{{", "{").replaceAll("}}", "}");
 const desktopScript = mainRs
   .slice(scriptStart + '<script>'.length, scriptEnd)
   .replaceAll('{{', '{')
@@ -42,6 +43,7 @@ await page.setContent(`<!doctype html>
   <head>
     <meta charset="utf-8">
     <style>
+      ${layoutCss}
       :root { --content-scale: 1; }
       body { margin: 0; font: 15px/1.6 system-ui, sans-serif; }
       #preview { font-size: calc(15px * var(--content-scale)); }
@@ -192,5 +194,12 @@ if (Math.abs(previewProgress - editorProgress) > 0.03 ||
   })}`);
 }
 
+for (const width of [390, 900, 1920]) {
+  await page.setViewportSize({ width, height: 844 });
+  await page.evaluate(() => document.body.classList.remove('editing'));
+  const available = await page.evaluate(() => document.documentElement.clientWidth);
+  const appWidth = await page.locator('#app').evaluate(el => el.getBoundingClientRect().width);
+  if (Math.abs(appWidth - available) > 2) throw new Error(`Document wastes window width: ${appWidth}/${available}`);
+}
 await browser.close();
 console.log('[desktop-reading-tools-verify] OK');
