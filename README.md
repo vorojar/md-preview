@@ -2,7 +2,7 @@
 
 > Apple platform (macOS / iOS / iPadOS) downloads, package builds, and signing are suspended. Apple features described below refer to retained source code only.
 
-**English · [简体中文](README_zh.md)**
+**English · [简体中文](README_zh.md) · [Türkçe](README_tr.md)**
 
 [![GitHub stars](https://img.shields.io/github/stars/vorojar/md-preview)](https://github.com/vorojar/md-preview/stargazers)
 [![Release](https://img.shields.io/github/v/release/vorojar/md-preview)](https://github.com/vorojar/md-preview/releases)

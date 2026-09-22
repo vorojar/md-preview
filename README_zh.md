@@ -2,7 +2,7 @@
 
 > Apple 平台（macOS / iOS / iPadOS）下载、构建打包和签名发布已暂停。下文 Apple 功能描述仅记录保留的源码能力。
 
-**[English](README.md) · 简体中文**
+**[English](README.md) · 简体中文 · [Türkçe](README_tr.md)**
 
 [![GitHub stars](https://img.shields.io/github/stars/vorojar/md-preview)](https://github.com/vorojar/md-preview/stargazers)
 [![Release](https://img.shields.io/github/v/release/vorojar/md-preview)](https://github.com/vorojar/md-preview/releases)
