@@ -47,7 +47,7 @@ Get the latest build from [GitHub Releases](https://github.com/vorojar/md-previe
 | Platform | Package | Notes |
 |---|---|---|
 | Windows | `MD-Preview-windows-x64.exe` | Single-file app. The in-app updater downloads the next exe, verifies its SHA-256 digest, replaces itself, and relaunches. |
-| Linux | `MD-Preview-linux-x64.tar.gz` | Requires the system WebKitGTK runtime. |
+| Linux | `MD-Preview-linux-x64.tar.gz`, `MD-Preview-linux-x64.deb`, `MD-Preview-linux-x86_64.AppImage` | All three require the system WebKitGTK runtime (not bundled). The `.deb` declares its dependencies and registers a desktop entry + icon; the AppImage and tar.gz do not integrate with the desktop automatically. |
 | Android | `MD-Preview-Android.apk` | Native Android viewer for opening Markdown files from Files, WeChat, WeCom, and share sheets. |
 
 Android builds are published as separate mobile releases, for example [mobile-android-v1.0.10](https://github.com/vorojar/md-preview/releases/tag/mobile-android-v1.0.10).
@@ -207,6 +207,16 @@ cargo build --release
 ```
 
 CI and release builds cover Windows and Linux. Android is released separately.
+
+To build the Linux `.deb` and AppImage locally:
+
+```bash
+cargo install cargo-deb --locked
+scripts/build-linux-packages.sh
+```
+
+Neither bundles WebKitGTK/GTK — both rely on the system runtime, same as the `tar.gz`. `appimagetool` is
+downloaded once to `.tools/` on first run.
 
 Maintainer release flow:
 
