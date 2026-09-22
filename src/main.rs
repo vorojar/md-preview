@@ -53,6 +53,7 @@ enum UserEvent {
     CheckUpdates,
     UpdateCheckResult(UpdateCheckResult),
     SetTheme(ThemeChoice),
+    SetColorTheme(ColorTheme),
     OpenUrl(&'static str),
     Quit,
     RecentChanged,
@@ -100,6 +101,34 @@ impl ThemeChoice {
             ThemeChoice::System => None,
             ThemeChoice::Light => Some(Theme::Light),
             ThemeChoice::Dark => Some(Theme::Dark),
+        }
+    }
+}
+
+/// Content color palette for the preview — independent of `ThemeChoice`.
+/// `ThemeChoice` picks the native window appearance (which in turn drives
+/// `prefers-color-scheme`); `ColorTheme` picks a specific markdown palette
+/// and applies via a `data-color-theme` body attribute, so it can be
+/// selected in-app on every platform without a native menu.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+enum ColorTheme {
+    #[default]
+    Default,
+    OneDarkPro,
+}
+
+impl ColorTheme {
+    fn as_str(self) -> &'static str {
+        match self {
+            ColorTheme::Default => "default",
+            ColorTheme::OneDarkPro => "one-dark-pro",
+        }
+    }
+
+    fn from_str(value: &str) -> Self {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "one-dark-pro" => ColorTheme::OneDarkPro,
+            _ => ColorTheme::Default,
         }
     }
 }
@@ -166,6 +195,9 @@ struct Strings {
     btn_zoom_out: &'static str,
     btn_zoom_reset: &'static str,
     btn_zoom_in: &'static str,
+    btn_color_theme: &'static str,
+    theme_default: &'static str,
+    theme_one_dark_pro: &'static str,
     search_placeholder: &'static str,
     stat_words: &'static str,
     stat_chars: &'static str,
@@ -195,6 +227,9 @@ impl Strings {
                 btn_zoom_out: "缩小正文 (Cmd/Ctrl+-)",
                 btn_zoom_reset: "重置正文缩放 (Cmd/Ctrl+0)",
                 btn_zoom_in: "放大正文 (Cmd/Ctrl++)",
+                btn_color_theme: "配色主题",
+                theme_default: "默认",
+                theme_one_dark_pro: "One Dark Pro",
                 search_placeholder: "搜索",
                 stat_words: "字",
                 stat_chars: "字符",
@@ -220,6 +255,9 @@ impl Strings {
                 btn_zoom_out: "Zoom out (Cmd/Ctrl+-)",
                 btn_zoom_reset: "Reset zoom (Cmd/Ctrl+0)",
                 btn_zoom_in: "Zoom in (Cmd/Ctrl++)",
+                btn_color_theme: "Color theme",
+                theme_default: "Default",
+                theme_one_dark_pro: "One Dark Pro",
                 search_placeholder: "Find",
                 stat_words: "non-space",
                 stat_chars: "chars",
@@ -275,6 +313,22 @@ fn save_theme_choice(choice: ThemeChoice) {
     let dir = config_dir();
     let _ = fs::create_dir_all(&dir);
     let _ = fs::write(dir.join("theme.txt"), choice.as_str());
+}
+
+fn color_theme_path() -> PathBuf {
+    config_dir().join("color_theme.txt")
+}
+
+fn load_color_theme() -> ColorTheme {
+    fs::read_to_string(color_theme_path())
+        .map(|raw| ColorTheme::from_str(&raw))
+        .unwrap_or_default()
+}
+
+fn save_color_theme(choice: ColorTheme) {
+    let dir = config_dir();
+    let _ = fs::create_dir_all(&dir);
+    let _ = fs::write(dir.join("color_theme.txt"), choice.as_str());
 }
 
 fn show_info_dialog(title: &str, description: &str) {
@@ -738,6 +792,7 @@ fn unique_heading_id(base: String, seen: &mut HashMap<String, usize>) -> String 
 const HLJS_JS: &str = include_str!("../assets/hljs/highlight.min.js");
 const HLJS_LIGHT: &str = include_str!("../assets/hljs/github.min.css");
 const HLJS_DARK: &str = include_str!("../assets/hljs/github-dark.min.css");
+const HLJS_ONE_DARK_PRO: &str = include_str!("../assets/hljs/atom-one-dark.min.css");
 // Extra language pack(s) not in the `common` bundle. Each file
 // ends with `hljs.registerLanguage(...)` and only works if evaluated
 // in the same scope as the main bundle — we concat them into hljs-src.
@@ -1061,6 +1116,7 @@ fn build_page(
     s: &Strings,
     empty: bool,
     native_updater: bool,
+    color_theme: ColorTheme,
 ) -> String {
     let body_class = if empty { "empty" } else { "" };
     let base_tag = base_href
@@ -1071,16 +1127,7 @@ fn build_page(
 {base_tag}
 <style id="hljs-light">{css_light}</style>
 <style id="hljs-dark" media="not all">{css_dark}</style>
-<script>
-(function(){{
-  var mq = window.matchMedia('(prefers-color-scheme: dark)');
-  function apply(e) {{
-    document.getElementById('hljs-light').media = e.matches ? 'not all' : '';
-    document.getElementById('hljs-dark').media = e.matches ? '' : 'not all';
-  }}
-  apply(mq); mq.addEventListener('change', apply);
-}})();
-</script>
+<style id="hljs-one-dark-pro" media="not all">{css_one_dark_pro}</style>
 <style>
 :root {{ color-scheme: light dark; --chrome-top: 10px; --content-scale: 1; }}
 /* Reserve scrollbar space permanently so the fixed toolbar doesn't shift
@@ -1089,12 +1136,12 @@ html {{ overflow-y: scroll; scrollbar-gutter: stable; }}
 body {{
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   margin: 0; padding: 0;
-  line-height: 1.6; font-size: 15px;
+  line-height: 1.6; font-size: 16px;
   color: #1a1a1a; background: #fff;
 }}
 body.has-tabs {{ --chrome-top: 50px; }}
 #app {{ width: 100%; box-sizing: border-box; margin: 0 auto; padding: 24px; }}
-#preview {{ font-size: calc(15px * var(--content-scale)); }}
+#preview {{ font-size: calc(16px * var(--content-scale)); }}
 #preview .front-matter {{
   margin: 0 0 1.5em;
   padding: .85em 0;
@@ -1113,13 +1160,22 @@ body.has-tabs {{ --chrome-top: 50px; }}
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }}
-#preview h1,#preview h2,#preview h3,#preview h4 {{ margin-top: 1.4em; }}
-#preview h1 {{ border-bottom: 1px solid #e1e4e8; padding-bottom: .3em; }}
-#preview h2 {{ border-bottom: 1px solid #e1e4e8; padding-bottom: .2em; }}
+#preview h1, #preview h2, #preview h3, #preview h4, #preview h5, #preview h6 {{
+  margin-top: 1em; margin-bottom: 16px; line-height: 1.25; font-weight: 600;
+}}
+#preview h1 {{ font-size: 2.25em; font-weight: 300; border-bottom: 1px solid #e1e4e8; padding-bottom: .3em; }}
+#preview h2 {{ font-size: 1.75em; font-weight: 400; border-bottom: 1px solid #e1e4e8; padding-bottom: .2em; }}
+#preview h3 {{ font-size: 1.5em; font-weight: 500; }}
+#preview h4 {{ font-size: 1.25em; }}
+#preview h5 {{ font-size: 1.1em; }}
+#preview h6 {{ font-size: 1em; }}
+#preview p {{ margin: 0 0 16px; }}
+#preview li > p {{ margin: 0; }}
+#preview ul ul, #preview ul ol, #preview ol ul, #preview ol ol {{ margin: 0; }}
 #preview code {{ background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 90%; }}
-#preview pre {{ background: #f6f8fa; padding: 16px; border-radius: 8px; overflow-x: auto; }}
+#preview pre {{ background: #f6f8fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0 0 16px; }}
 #preview pre code {{ background: none; padding: 0; font-size: 14px; }}
-#preview blockquote {{ border-left: 4px solid #ddd; margin: 0; padding: 0 1em; color: #666; }}
+#preview blockquote {{ border-left: 4px solid #ddd; margin: 0 0 16px; padding: 0 1em; color: #666; }}
 #preview .markdown-alert-note,
 #preview .markdown-alert-tip,
 #preview .markdown-alert-important,
@@ -1173,7 +1229,7 @@ body.has-tabs {{ --chrome-top: 50px; }}
 #preview hr {{ border: none; border-top: 1px solid #e1e4e8; margin: 2em 0; }}
 #preview a {{ color: #0969da; text-decoration: none; }}
 #preview a:hover {{ text-decoration: underline; }}
-#preview ul, #preview ol {{ padding-left: 2em; }}
+#preview ul, #preview ol {{ margin: 0 0 16px; padding-left: 2em; }}
 #preview input[type="checkbox"] {{ margin-right: 6px; }}
 	.empty {{ display: flex; flex-direction: column; align-items: center; justify-content: center;
 	  min-height: 60vh; color: #999; font-size: 18px; gap: 12px; text-align: center; }}
@@ -1287,6 +1343,22 @@ body.empty .toolbar.has-update button:not(.update-btn) {{ display: none !importa
 	.toolbar .zoom-popover .zoom-reset {{
 	  width: 52px; font-size: 11px; font-variant-numeric: tabular-nums;
 	}}
+	.theme-control {{ position: relative; }}
+	.theme-popover {{
+	  position: absolute; top: 40px; right: 0;
+	  display: none; flex-direction: column; gap: 2px; padding: 4px; min-width: 140px;
+	  border: 1px solid rgba(0,0,0,.1); border-radius: 8px;
+	  background: rgba(255,255,255,.96); box-shadow: 0 6px 20px rgba(0,0,0,.12);
+	  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+	}}
+	.theme-control.open .theme-popover {{ display: flex; }}
+	.theme-popover .theme-option {{
+	  width: auto; height: 32px; padding: 0 10px; border: 0; border-radius: 6px;
+	  background: transparent; color: #333; font: 13px/1 inherit; text-align: left;
+	  display: flex; align-items: center; cursor: pointer;
+	}}
+	.theme-popover .theme-option:hover {{ background: rgba(0,0,0,.06); }}
+	.theme-popover .theme-option.active {{ font-weight: 600; color: #0969da; }}
 	.toolbar .update-btn {{
 	  width: auto; min-width: 76px; padding: 0 11px; grid-auto-flow: column; gap: 5px;
 	  font-size: 13px; font-weight: 600; color: #0969da;
@@ -1345,6 +1417,10 @@ body.empty .toolbar.has-update button:not(.update-btn) {{ display: none !importa
 	  .toolbar button:hover {{ color: #fff; background: rgba(55,55,55,1); }}
 	  .zoom-popover {{ background: rgba(34,34,34,.96); border-color: rgba(255,255,255,.12); }}
 	  .toolbar .zoom-popover button:hover {{ background: rgba(255,255,255,.1); }}
+	  .theme-popover {{ background: rgba(34,34,34,.96); border-color: rgba(255,255,255,.12); }}
+	  .theme-popover .theme-option {{ color: #ddd; }}
+	  .theme-popover .theme-option:hover {{ background: rgba(255,255,255,.1); }}
+	  .theme-popover .theme-option.active {{ color: #6cb6ff; }}
 	  .toolbar .update-btn {{ color: #6cb6ff; }}
 		  .empty-open {{ background: #242424; border-color: #444; color: #ddd; }}
 		  .empty-open:hover {{ background: #2d2d2d; color: #fff; }}
@@ -1363,6 +1439,72 @@ body.empty .toolbar.has-update button:not(.update-btn) {{ display: none !importa
 	  .missing-actions button {{ background: #292929; border-color: #444; color: #ddd; }}
 	  .missing-actions button:hover {{ background: #333; }}
 	}}
+
+/* "One Dark Pro" content palette — selectable from the toolbar theme
+   picker independent of light/dark. Unlike the block above, these rules
+   are not gated by `prefers-color-scheme`, so they apply regardless of
+   the OS/window appearance once picked; being declared after both the
+   base and dark-media rules is what lets them win the cascade in every
+   case. Colors are the actual VS Code "One Dark Pro" theme + highlight.js
+   "Atom One Dark" values, not approximations. */
+body[data-color-theme="one-dark-pro"] {{ color: #abb2bf; background: #282c34; }}
+body[data-color-theme="one-dark-pro"] #preview a {{ color: #61afef; }}
+body[data-color-theme="one-dark-pro"] #preview h1,
+body[data-color-theme="one-dark-pro"] #preview h2 {{ border-color: #4b5362; }}
+body[data-color-theme="one-dark-pro"] #preview .front-matter {{ border-color: #4b5362; color: #818896; }}
+body[data-color-theme="one-dark-pro"] #preview .front-matter pre {{ background: transparent !important; }}
+body[data-color-theme="one-dark-pro"] #preview pre {{ background: #2c313c !important; }}
+body[data-color-theme="one-dark-pro"] #preview code:not(pre code) {{ background: #2c313c; color: #d19a66; }}
+body[data-color-theme="one-dark-pro"] #preview blockquote {{ border-color: #4b5362; color: #7f848e; }}
+body[data-color-theme="one-dark-pro"] #preview .markdown-alert-note,
+body[data-color-theme="one-dark-pro"] #preview .markdown-alert-tip,
+body[data-color-theme="one-dark-pro"] #preview .markdown-alert-important,
+body[data-color-theme="one-dark-pro"] #preview .markdown-alert-warning,
+body[data-color-theme="one-dark-pro"] #preview .markdown-alert-caution {{ background: #2c313c; color: #abb2bf; }}
+body[data-color-theme="one-dark-pro"] #preview .markdown-alert-note {{ border-color: #61afef; }}
+body[data-color-theme="one-dark-pro"] #preview .markdown-alert-tip {{ border-color: #98c379; }}
+body[data-color-theme="one-dark-pro"] #preview .markdown-alert-important {{ border-color: #c678dd; }}
+body[data-color-theme="one-dark-pro"] #preview .markdown-alert-warning {{ border-color: #e5c07b; }}
+body[data-color-theme="one-dark-pro"] #preview .markdown-alert-caution {{ border-color: #e06c75; }}
+body[data-color-theme="one-dark-pro"] #preview .markdown-alert-note .markdown-alert-title {{ color: #61afef; }}
+body[data-color-theme="one-dark-pro"] #preview .markdown-alert-tip .markdown-alert-title {{ color: #98c379; }}
+body[data-color-theme="one-dark-pro"] #preview .markdown-alert-important .markdown-alert-title {{ color: #c678dd; }}
+body[data-color-theme="one-dark-pro"] #preview .markdown-alert-warning .markdown-alert-title {{ color: #e5c07b; }}
+body[data-color-theme="one-dark-pro"] #preview .markdown-alert-caution .markdown-alert-title {{ color: #e06c75; }}
+body[data-color-theme="one-dark-pro"] #preview table th {{ background: #2c313c; color: #abb2bf; }}
+body[data-color-theme="one-dark-pro"] #preview table td,
+body[data-color-theme="one-dark-pro"] #preview table th {{ border-color: #4b5362; }}
+body[data-color-theme="one-dark-pro"] #preview hr {{ border-color: #4b5362; }}
+body[data-color-theme="one-dark-pro"] .toolbar button {{
+  background: rgba(40,44,52,0.85);
+  border-color: rgba(255,255,255,0.1);
+  color: #bbb;
+}}
+body[data-color-theme="one-dark-pro"] .toolbar button:hover {{ color: #fff; background: rgba(60,66,78,1); }}
+body[data-color-theme="one-dark-pro"] .zoom-popover {{ background: rgba(40,44,52,.96); border-color: rgba(255,255,255,.12); }}
+body[data-color-theme="one-dark-pro"] .toolbar .zoom-popover button:hover {{ background: rgba(255,255,255,.1); }}
+body[data-color-theme="one-dark-pro"] .theme-popover {{ background: rgba(40,44,52,.96); border-color: rgba(255,255,255,.12); }}
+body[data-color-theme="one-dark-pro"] .theme-popover .theme-option {{ color: #ddd; }}
+body[data-color-theme="one-dark-pro"] .theme-popover .theme-option:hover {{ background: rgba(255,255,255,.1); }}
+body[data-color-theme="one-dark-pro"] .theme-popover .theme-option.active {{ color: #61afef; }}
+body[data-color-theme="one-dark-pro"] .toolbar .update-btn {{ color: #61afef; }}
+body[data-color-theme="one-dark-pro"] .empty-open {{ background: #2c313c; border-color: #4b5362; color: #abb2bf; }}
+body[data-color-theme="one-dark-pro"] .empty-open:hover {{ background: #363c47; color: #fff; }}
+body[data-color-theme="one-dark-pro"] .recent-name {{ color: #abb2bf; }}
+body[data-color-theme="one-dark-pro"] .recent-item {{ background: #2c313c; border-color: #4b5362; }}
+body[data-color-theme="one-dark-pro"] .recent-item:hover {{ background: #363c47; }}
+body[data-color-theme="one-dark-pro"] .findbar {{ background: rgba(40,44,52,0.96); border-color: rgba(255,255,255,0.1); }}
+body[data-color-theme="one-dark-pro"] .findbar button:hover {{ background: #363c47; color: #fff; }}
+body[data-color-theme="one-dark-pro"] .tabbar {{ background: rgba(33,37,43,.96); border-color: #4b5362; }}
+body[data-color-theme="one-dark-pro"] .tab {{ color: #818896; }}
+body[data-color-theme="one-dark-pro"] .tab:hover {{ background: rgba(255,255,255,.07); }}
+body[data-color-theme="one-dark-pro"] .tab.active {{ color: #abb2bf; background: #2c313c; border-color: #4b5362; }}
+body[data-color-theme="one-dark-pro"] .tab.missing {{ color: #e5c07b; }}
+body[data-color-theme="one-dark-pro"] .tab-close:hover,
+body[data-color-theme="one-dark-pro"] .tab-open:hover {{ background: rgba(255,255,255,.1); color: #fff; }}
+body[data-color-theme="one-dark-pro"] .missing-file p {{ color: #818896; }}
+body[data-color-theme="one-dark-pro"] .missing-actions button {{ background: #2c313c; border-color: #4b5362; color: #abb2bf; }}
+body[data-color-theme="one-dark-pro"] .missing-actions button:hover {{ background: #363c47; }}
 
 /* Source editor textarea — height is auto-grown by JS to match content,
    so the page (html) owns the only vertical scrollbar. */
@@ -1393,7 +1535,26 @@ body.editing #btn-print {{ display: none; }}
   #app {{ max-width: none; padding: 0; }}
   #preview .mdp-table-wrap {{ width: auto; margin: 1em 0; transform: none; overflow: visible; }}
 }}
-	</style></head><body class="{body_class}">
+	</style></head><body class="{body_class}" data-color-theme="{color_theme_attr}">
+	<script>
+	(function(){{
+	  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+	  function apply() {{
+	    var light = document.getElementById('hljs-light');
+	    var dark = document.getElementById('hljs-dark');
+	    var oneDarkPro = document.getElementById('hljs-one-dark-pro');
+	    if (document.body.getAttribute('data-color-theme') === 'one-dark-pro') {{
+	      light.media = 'not all'; dark.media = 'not all'; oneDarkPro.media = '';
+	      return;
+	    }}
+	    oneDarkPro.media = 'not all';
+	    light.media = mq.matches ? 'not all' : '';
+	    dark.media = mq.matches ? '' : 'not all';
+	  }}
+	  apply(); mq.addEventListener('change', apply);
+	  window.__mdPreviewApplyHljsTheme = apply;
+	}})();
+	</script>
 	<div class="tabbar" id="tabbar"><div class="tabs" id="tabs"></div><div class="doc-stats" id="doc-stats" aria-live="polite"></div><button class="tab-open" id="tab-open" type="button" title="{btn_new}" aria-label="{btn_new}">+</button></div>
 	<div class="toolbar">
 	  <button id="btn-open" title="{btn_open}" aria-label="{btn_open}"></button>
@@ -1406,6 +1567,13 @@ body.editing #btn-print {{ display: none; }}
 	      <button id="btn-zoom-out" title="{btn_zoom_out}" aria-label="{btn_zoom_out}">−</button>
 	      <button id="btn-zoom-reset" class="zoom-reset" title="{btn_zoom_reset}" aria-label="{btn_zoom_reset}">100%</button>
 	      <button id="btn-zoom-in" title="{btn_zoom_in}" aria-label="{btn_zoom_in}">+</button>
+	    </div>
+	  </div>
+	  <div class="theme-control" id="theme-control">
+	    <button id="btn-color-theme" title="{btn_color_theme}" aria-label="{btn_color_theme}"></button>
+	    <div class="theme-popover" id="theme-popover">
+	      <button type="button" class="theme-option" data-color-theme-option="default">{theme_default}</button>
+	      <button type="button" class="theme-option" data-color-theme-option="one-dark-pro">{theme_one_dark_pro}</button>
 	    </div>
 	  </div>
 	  <button id="btn-update" class="update-btn" hidden title="{btn_update}" aria-label="{btn_update}"></button>
@@ -1429,6 +1597,7 @@ body.editing #btn-print {{ display: none; }}
 	  var ICON_SEARCH = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>';
 	  var ICON_PRINT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>';
 	  var ICON_ZOOM = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/><path d="M11 8v6"/></svg>';
+	  var ICON_THEME = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>';
 	  var ICON_UP = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>';
 	  var ICON_DOWN = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
 	  var ICON_CLOSE = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
@@ -1443,6 +1612,10 @@ body.editing #btn-print {{ display: none; }}
 	  var btnZoomReset = document.getElementById('btn-zoom-reset');
 	  var btnZoomIn = document.getElementById('btn-zoom-in');
 	  var zoomControl = document.getElementById('zoom-control');
+	  var btnColorTheme = document.getElementById('btn-color-theme');
+	  var themeControl = document.getElementById('theme-control');
+	  var themePopover = document.getElementById('theme-popover');
+	  var themeOptions = themePopover.querySelectorAll('.theme-option');
 	  var btnUpdate = document.getElementById('btn-update');
 	  var findInput = document.getElementById('find-input');
 	  var findState = document.getElementById('find-state');
@@ -1477,6 +1650,7 @@ body.editing #btn-print {{ display: none; }}
 	  btnToggle.innerHTML = ICON_EDIT;
 	  btnPrint.innerHTML = ICON_PRINT;
 	  btnZoom.innerHTML = ICON_ZOOM;
+	  btnColorTheme.innerHTML = ICON_THEME;
 	  btnUpdate.innerHTML = '<span class="update-mark">↻</span><span class="update-label">{btn_update}</span>';
 	  findPrev.innerHTML = ICON_UP;
 	  findNext.innerHTML = ICON_DOWN;
@@ -1536,6 +1710,20 @@ body.editing #btn-print {{ display: none; }}
     }});
   }}
   applyZoom(loadZoomPercent(), false);
+  function markActiveColorTheme() {{
+    var current = document.body.getAttribute('data-color-theme') || 'default';
+    themeOptions.forEach(function(option) {{
+      option.classList.toggle('active', option.getAttribute('data-color-theme-option') === current);
+    }});
+  }}
+  function setColorTheme(name) {{
+    document.body.setAttribute('data-color-theme', name);
+    if (window.__mdPreviewApplyHljsTheme) window.__mdPreviewApplyHljsTheme();
+    if (window.__mdPreviewRerenderMermaid) window.__mdPreviewRerenderMermaid();
+    markActiveColorTheme();
+    window.ipc.postMessage('color-theme:' + name);
+  }}
+  markActiveColorTheme();
   updateDocumentStats(ta.value);
   document.addEventListener('contextmenu', function(e) {{
     if (!inEdit() || e.target !== ta) e.preventDefault();
@@ -1814,6 +2002,16 @@ body.editing #btn-print {{ display: none; }}
 	  btnZoomOut.addEventListener('click', function() {{ changeZoom(-ZOOM_STEP); }});
 	  btnZoomReset.addEventListener('click', function() {{ applyZoom(100, true); }});
 	  btnZoomIn.addEventListener('click', function() {{ changeZoom(ZOOM_STEP); }});
+	  btnColorTheme.addEventListener('click', function(e) {{
+	    e.stopPropagation();
+	    themeControl.classList.toggle('open');
+	  }});
+	  themeOptions.forEach(function(option) {{
+	    option.addEventListener('click', function() {{
+	      setColorTheme(option.getAttribute('data-color-theme-option'));
+	      themeControl.classList.remove('open');
+	    }});
+	  }});
   btnPrint.addEventListener('click', function() {{
     if (inEdit()) leaveEdit();
     // Route through Rust: WKWebView ignores window.print(); wry's
@@ -1824,6 +2022,7 @@ body.editing #btn-print {{ display: none; }}
   window.addEventListener('resize', function() {{ if (inEdit()) autoResize(); }});
   document.addEventListener('click', function(e) {{
     if (!zoomControl.contains(e.target)) zoomControl.classList.remove('open');
+    if (!themeControl.contains(e.target)) themeControl.classList.remove('open');
   }});
 
   document.addEventListener('keydown', function(e) {{
@@ -2045,6 +2244,8 @@ window.__mdPreviewInstallUpdateCheck({{
 </body></html>"#,
         css_light = HLJS_LIGHT,
         css_dark = HLJS_DARK,
+        css_one_dark_pro = HLJS_ONE_DARK_PRO,
+        color_theme_attr = color_theme.as_str(),
         base_tag = base_tag,
         preview_html = preview_html,
         raw_md_escaped = html_escape_ta(raw_md),
@@ -2059,6 +2260,9 @@ window.__mdPreviewInstallUpdateCheck({{
         btn_zoom_out = s.btn_zoom_out,
         btn_zoom_reset = s.btn_zoom_reset,
         btn_zoom_in = s.btn_zoom_in,
+        btn_color_theme = s.btn_color_theme,
+        theme_default = s.theme_default,
+        theme_one_dark_pro = s.theme_one_dark_pro,
         search_placeholder = s.search_placeholder,
         btn_update_js = escape_js(s.btn_update),
         stat_words_js = escape_js(s.stat_words),
@@ -2340,7 +2544,7 @@ mod tests {
         fs::write(&file, "x".repeat(3 * 1024 * 1024)).unwrap();
         let mut session = DocumentSession::default();
         session.open(file, true);
-        let page = build_startup_page(&Strings::for_lang(Lang::En), false);
+        let page = build_startup_page(&Strings::for_lang(Lang::En), false, ColorTheme::Default);
         assert!(
             page.len() < 2 * 1024 * 1024,
             "startup HTML has {} bytes",
@@ -2556,6 +2760,7 @@ mod tests {
             &strings,
             false,
             true,
+            ColorTheme::Default,
         );
 
         assert!(page.contains("document.addEventListener('contextmenu'"));
@@ -2618,6 +2823,7 @@ mod tests {
             &strings,
             false,
             true,
+            ColorTheme::Default,
         );
 
         assert!(page.contains("window.ipc.postMessage('new-file')"));
@@ -2649,6 +2855,7 @@ mod tests {
             &strings,
             false,
             true,
+            ColorTheme::Default,
         );
         let empty_start = page.find("window.__setEmptyPreview = function").unwrap();
         let missing_start = page.find("window.__setMissing = function").unwrap();
@@ -2685,6 +2892,7 @@ mod tests {
             &strings,
             false,
             false,
+            ColorTheme::Default,
         );
 
         assert!(page.contains("mdp-table-wrap"));
@@ -2755,6 +2963,7 @@ mod tests {
             &strings,
             true,
             false,
+            ColorTheme::Default,
         );
         assert!(page.contains(".empty.has-recent"));
         assert!(!page.contains(".empty.has-recent .recent { max-height"));
@@ -4250,7 +4459,11 @@ fn render_active_document(
 
 // WebView2 NavigateToString has a 2 MiB limit. Never include document or
 // persisted path data in this page; load the active tab after the ready IPC.
-fn build_startup_page(strings: &Strings, native_updater_enabled: bool) -> String {
+fn build_startup_page(
+    strings: &Strings,
+    native_updater_enabled: bool,
+    color_theme: ColorTheme,
+) -> String {
     build_page(
         &empty_preview_html(strings, &[]),
         "",
@@ -4259,6 +4472,7 @@ fn build_startup_page(strings: &Strings, native_updater_enabled: bool) -> String
         strings,
         true,
         native_updater_enabled,
+        color_theme,
     )
 }
 
@@ -4347,6 +4561,7 @@ fn main() {
     }
     let initial_theme = load_theme_choice();
     install_macos_menu(proxy.clone(), initial_theme);
+    let initial_color_theme = load_color_theme();
     let native_updater_enabled = native_updater_enabled();
 
     let title = initial_session
@@ -4382,7 +4597,7 @@ fn main() {
 
     let recent_files: Arc<Mutex<Vec<PathBuf>>> = Arc::new(Mutex::new(load_recent_files()));
 
-    let initial_page = build_startup_page(&strings, native_updater_enabled);
+    let initial_page = build_startup_page(&strings, native_updater_enabled, initial_color_theme);
     let initial_flags = EnhanceFlags::default();
 
     persist_session(&initial_session);
@@ -4508,6 +4723,10 @@ fn main() {
                 if let Ok(id) = id.parse::<u64>() {
                     let _ = proxy_for_ipc.send_event(UserEvent::LocateTab(id));
                 }
+            } else if let Some(name) = body.strip_prefix("color-theme:") {
+                let _ = proxy_for_ipc.send_event(UserEvent::SetColorTheme(ColorTheme::from_str(
+                    name,
+                )));
             } else if body == "dirty:1" {
                 let _ = proxy_for_ipc.send_event(UserEvent::DirtyChanged(true));
             } else if body == "dirty:0" {
@@ -5026,6 +5245,12 @@ fn main() {
             TaoEvent::UserEvent(UserEvent::SetTheme(choice)) => {
                 save_theme_choice(choice);
                 window.set_theme(choice.tao_theme());
+            }
+            TaoEvent::UserEvent(UserEvent::SetColorTheme(choice)) => {
+                // The webview already applied the picker's choice live via
+                // JS (data-color-theme attribute); this just persists it so
+                // the next launch's initial HTML renders with no flash.
+                save_color_theme(choice);
             }
             TaoEvent::UserEvent(UserEvent::OpenUrl(url)) => {
                 let _ = open::that(url);
