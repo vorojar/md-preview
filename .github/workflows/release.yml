@@ -59,17 +59,31 @@ jobs:
       - name: Build
         run: cargo build --release
 
-      - name: Package
+      - name: Package (tar.gz)
         run: |
           mkdir -p dist
           cp target/release/md-preview dist/
           tar czf MD-Preview-linux-x64.tar.gz -C dist .
 
+      - name: Install cargo-deb
+        run: cargo install cargo-deb --locked
+
+      - name: Build .deb and AppImage
+        run: ./scripts/build-linux-packages.sh
+
+      - name: Rename Linux packages for release
+        run: |
+          cp target/debian/*.deb MD-Preview-linux-x64.deb
+          cp target/appimage/MD-Preview-x86_64.AppImage MD-Preview-linux-x86_64.AppImage
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: linux-tar
-          path: MD-Preview-linux-x64.tar.gz
+          name: linux
+          path: |
+            MD-Preview-linux-x64.tar.gz
+            MD-Preview-linux-x64.deb
+            MD-Preview-linux-x86_64.AppImage
 
   publish-release:
     needs: [build-windows, build-linux]
@@ -102,4 +116,6 @@ jobs:
           files: |
             MD-Preview-windows-x64.exe
             MD-Preview-linux-x64.tar.gz
+            MD-Preview-linux-x64.deb
+            MD-Preview-linux-x86_64.AppImage
           body_path: RELEASE_NOTES.md

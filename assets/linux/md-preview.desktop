@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=MD Preview
+GenericName=Markdown Previewer
+Comment=Fast, local-first Markdown preview and quick editor
+Exec=md-preview %F
+Icon=md-preview
+Terminal=false
+Categories=Utility;TextEditor;Office;
+MimeType=text/markdown;text/x-markdown;
+StartupWMClass=md-preview

@@ -3,6 +3,9 @@ name = "md-preview"
 version = "1.4.2"
 edition = "2021"
 rust-version = "1.89"
+description = "Fast, local-first Markdown preview and quick editor. Rust + system WebView, no Electron."
+license = "MIT"
+repository = "https://github.com/vorojar/md-preview"
 
 [dependencies]
 wry = "0.50"
@@ -34,3 +37,19 @@ lto = true
 codegen-units = 1
 strip = true
 panic = "abort"
+
+[package.metadata.deb]
+maintainer = "vorojar <noreply@vorojar.dev>"
+copyright = "vorojar/md-preview contributors"
+extended-description = """\
+MD Preview is a fast, local-first Markdown previewer and quick editor built with \
+Rust and the system WebView. No Electron, no bundled Chromium. Offline syntax \
+highlighting, KaTeX math, and Mermaid diagrams."""
+section = "utils"
+priority = "optional"
+depends = "libwebkit2gtk-4.1-0, libgtk-3-0t64 | libgtk-3-0, libayatana-appindicator3-1"
+assets = [
+    ["target/release/md-preview", "usr/bin/", "755"],
+    ["assets/linux/md-preview.desktop", "usr/share/applications/", "644"],
+    ["assets/icon_1024.png", "usr/share/icons/hicolor/512x512/apps/md-preview.png", "644"],
+]

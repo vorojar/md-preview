@@ -1,4 +1,6 @@
 /target
+/.tools
+/AppDir
 .env.mobile-release
 mobile/android/signing/
 mobile/ios/*.xcodeproj
