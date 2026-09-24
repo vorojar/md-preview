@@ -159,9 +159,32 @@
   }
 
   function currentMermaidTheme() {
+    // "One Dark Pro" is a fixed dark palette selected independently of the
+    // OS/window appearance (see data-color-theme in main.rs) — mermaid's
+    // 'default' theme assumes a light page and renders low-contrast dark
+    // lines/text, so it must use 'dark' whenever that palette is active,
+    // regardless of what prefers-color-scheme reports.
+    if (document.body.getAttribute('data-color-theme') === 'one-dark-pro') return 'dark';
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ?
       'dark' :
       'default';
+  }
+
+  // Diagrams are rendered once and cached in the DOM (see the
+  // pre.dataset.mdpMermaid guard below), so switching the color theme or
+  // the OS appearance after the fact would otherwise leave already-drawn
+  // diagrams on the old theme. Re-rendering needs the original source,
+  // which is kept on the container for exactly this.
+  function rerenderAllMermaid() {
+    if (!flags.mermaid || !window.mermaid) return;
+    var containers = document.querySelectorAll('.mdp-mermaid[data-mermaid-source]');
+    Array.prototype.forEach.call(containers, function(container) {
+      renderMermaid(container, container.dataset.mermaidSource);
+    });
+  }
+  window.__mdPreviewRerenderMermaid = rerenderAllMermaid;
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rerenderAllMermaid);
   }
 
   function renderMermaid(container, source) {
@@ -198,6 +221,7 @@
       var container = document.createElement('div');
       container.className = 'mdp-mermaid';
       container.textContent = source;
+      container.dataset.mermaidSource = source;
       pre.parentNode.replaceChild(container, pre);
       renderMermaid(container, source);
     });
