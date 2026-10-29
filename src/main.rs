@@ -1455,6 +1455,7 @@ body.editing #btn-print {{ display: none; }}
 	  var ta = document.getElementById('editor');
 	  var dirty = false;
 	  var activeTabId = 0;
+	  var tabScrollTops = {{}};
 	  var pendingAutosaveTimer = 0;
 	  var autosavePaused = false;
 	  var AUTOSAVE_DEBOUNCE_MS = 700;
@@ -1518,6 +1519,33 @@ body.editing #btn-print {{ display: none; }}
   function changeZoom(delta) {{
     applyZoom(zoomPercent + delta, true);
   }}
+  function rememberTabScroll() {{
+    if (!activeTabId) return;
+    tabScrollTops[activeTabId] = window.scrollY || document.documentElement.scrollTop || 0;
+  }}
+  var tabRestoreToken = 0;
+  function restoreTabScroll(id) {{
+    var top = tabScrollTops[id];
+    if (typeof top !== 'number') top = 0;
+    var token = ++tabRestoreToken;
+    var frames = 0;
+    function apply() {{
+      if (token !== tabRestoreToken) return;
+      var max = Math.max(document.documentElement.scrollHeight - window.innerHeight, 0);
+      window.scrollTo(window.scrollX || 0, Math.min(top, max));
+      // Images, math and mermaid grow the document after the first paint, so
+      // keep re-applying until the page can hold the remembered offset.
+      if (max < top && frames < 30) {{
+        frames += 1;
+        requestAnimationFrame(apply);
+      }}
+    }}
+    apply();
+  }}
+  ['wheel', 'touchstart'].forEach(function(name) {{
+    window.addEventListener(name, function() {{ tabRestoreToken += 1; }}, {{ passive: true }});
+  }});
+  window.addEventListener('keydown', function() {{ tabRestoreToken += 1; }});
   function currentScrollProgress() {{
     var root = document.documentElement;
     var max = Math.max(root.scrollHeight - window.innerHeight, 0);
@@ -1929,6 +1957,11 @@ body.editing #btn-print {{ display: none; }}
 	}};
 	window.__setTabs = function(tabs) {{
 	  tabs = Array.isArray(tabs) ? tabs : [];
+	  var liveTabs = {{}};
+	  tabs.forEach(function(tab) {{ liveTabs[tab.id] = true; }});
+	  Object.keys(tabScrollTops).forEach(function(id) {{
+	    if (!liveTabs[id]) delete tabScrollTops[id];
+	  }});
 	  tabsEl.textContent = '';
 	  activeTabId = 0;
 	  document.body.classList.toggle('has-tabs', tabs.length > 0);
@@ -1966,7 +1999,8 @@ body.editing #btn-print {{ display: none; }}
 	  e.preventDefault();
 	  requestTabAction('activate', tab.getAttribute('data-tab-id'));
 	}});
-	  window.__setContent = function(previewHtml, rawMd, baseHref, needsMath, needsMermaid) {{
+	  window.__setContent = function(previewHtml, rawMd, baseHref, needsMath, needsMermaid, tabId) {{
+	    rememberTabScroll();
 	    document.body.classList.remove('empty');
 	    document.body.classList.remove('missing');
 	    hideFind();
@@ -1979,8 +2013,10 @@ body.editing #btn-print {{ display: none; }}
       setDirty(false);
       if (inEdit()) autoResize();
     }}
+    restoreTabScroll(tabId);
   }};
 	  window.__setEmptyPreview = function(previewHtml) {{
+	    rememberTabScroll();
 	    document.body.classList.add('empty');
 	    document.body.classList.remove('missing');
 	    document.body.classList.remove('editing');
@@ -1998,6 +2034,7 @@ body.editing #btn-print {{ display: none; }}
 	    window.scrollTo(0, 0);
 	  }};
 	  window.__setMissing = function(previewHtml) {{
+	    rememberTabScroll();
 	    document.body.classList.remove('empty');
 	    document.body.classList.add('missing');
 	    document.body.classList.remove('editing');
@@ -2656,6 +2693,34 @@ mod tests {
 
         assert!(empty_handler.contains("document.body.classList.remove('editing')"));
         assert!(empty_handler.contains("btnToggle.innerHTML = ICON_EDIT"));
+    }
+
+    #[test]
+    fn desktop_tabs_remember_the_reading_position_of_each_tab() {
+        let strings = Strings::for_lang(Lang::En);
+        let page = build_page(
+            &md_to_html("# Hello"),
+            "# Hello",
+            None,
+            EnhanceFlags::default(),
+            &strings,
+            false,
+            true,
+        );
+
+        assert!(page.contains("var tabScrollTops = {};"));
+        assert!(page.contains("function rememberTabScroll()"));
+        assert!(page.contains(
+            "tabScrollTops[activeTabId] = window.scrollY || document.documentElement.scrollTop || 0;"
+        ));
+        assert!(page.contains("function restoreTabScroll(id)"));
+        assert!(page.contains("if (typeof top !== 'number') top = 0;"));
+        assert!(page.contains("restoreTabScroll(tabId);"));
+        assert!(
+            page.contains("function(previewHtml, rawMd, baseHref, needsMath, needsMermaid, tabId)")
+        );
+        assert!(page.contains("if (!liveTabs[id]) delete tabScrollTops[id];"));
+        assert!(include_str!("main.rs").contains("flags.mermaid,\n                active.id"));
     }
 
     #[test]
@@ -4179,12 +4244,13 @@ fn render_active_document(
             let flags = enhance_flags_for(&raw);
             *enhance_flags.lock().unwrap() = flags;
             let _ = webview.evaluate_script(&format!(
-                "if(window.__setContent)window.__setContent('{}', '{}', '{}', {}, {});",
+                "if(window.__setContent)window.__setContent('{}', '{}', '{}', {}, {}, {});",
                 escape_js(&html),
                 escape_js(&raw),
                 escape_js(&base_href),
                 flags.math,
-                flags.mermaid
+                flags.mermaid,
+                active.id
             ));
             for script in build_enhancer_bootstrap(flags, *loaded_enhancers) {
                 let _ = webview.evaluate_script(&script);
